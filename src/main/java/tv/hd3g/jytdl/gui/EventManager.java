@@ -18,9 +18,11 @@ package tv.hd3g.jytdl.gui;
 
 import java.awt.Desktop;
 import java.io.File;
+import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.net.MalformedURLException;
 import java.net.URL;
+import java.util.Arrays;
 import java.util.concurrent.ConcurrentHashMap;
 
 import org.w3c.dom.Document;
@@ -33,15 +35,15 @@ import javax.xml.bind.ValidationEventHandler;
 import javax.xml.bind.ValidationEventLocator;
 import javax.xml.parsers.DocumentBuilder;
 import javax.xml.parsers.DocumentBuilderFactory;
-import javax.xml.parsers.ParserConfigurationException;
 
+import org.apache.commons.lang.SystemUtils;
 import org.apache.log4j.Logger;
-import org.xml.sax.SAXException;
 
 import com.apple.propertylist.Dict;
 import com.apple.propertylist.Plist;
 
 import hd3gtv.tools.ExecBinaryPath;
+import hd3gtv.tools.Execprocess;
 import hd3gtv.tools.VideoConst;
 
 public class EventManager {
@@ -111,11 +113,52 @@ public class EventManager {
 	public void onFoundPlistFile(File new_file) {
 		operations_by_order_file.computeIfAbsent(new_file, f -> {
 			try {
-				return new Operation(f);
+				
+				log.info("Start scan file " + f);
+				
+				/**
+				 * Not the best method to parse a plist...
+				 */
+				DocumentBuilderFactory xmlDocumentBuilderFactory = DocumentBuilderFactory.newInstance();
+				DocumentBuilder xmlDocumentBuilder = xmlDocumentBuilderFactory.newDocumentBuilder();
+				xmlDocumentBuilder.setErrorHandler(null);
+				Document document = xmlDocumentBuilder.parse(f);
+				
+				JAXBElement<Plist> result = plist_unmarshaller.unmarshal(document, Plist.class);
+				Plist plist = result.getValue();
+				
+				URL target = plist.getArrayOrDataOrDateOrDictOrRealOrIntegerOrStringOrTrueOrFalse().stream().map(o -> {
+					return (Dict) o;
+				}).flatMap(dict -> {
+					return dict.getKeyOrArrayOrDataOrDateOrDictOrRealOrIntegerOrStringOrTrueOrFalse().stream();
+				}).filter(o -> {
+					return o instanceof com.apple.propertylist.String;
+				}).map(o -> {
+					try {
+						return new URL(((com.apple.propertylist.String) o).getvalue());
+					} catch (MalformedURLException e) {
+						throw new RuntimeException("Can't extract URL", e);
+					}
+				}).findFirst().orElseThrow(() -> new NullPointerException("Can't extract URL from plist file"));
+				
+				return new Operation(f, target);
 			} catch (Exception e) {
 				throw new RuntimeException("Can't process plist file " + new_file.getName(), e);
 			}
 		});
+	}
+	
+	public void onFoundURLFile(File new_file) {
+		operations_by_order_file.computeIfAbsent(new_file, f -> {
+			try {
+				log.info("Start scan file " + f);
+				
+				return new Operation(f, new WindowsURLParser(new_file).getURL());
+			} catch (Exception e) {
+				throw new RuntimeException("Can't process plist file " + new_file.getName(), e);
+			}
+		});
+		
 	}
 	
 	public void onLostFile(File old_file) {
@@ -127,47 +170,35 @@ public class EventManager {
 	
 	class Operation {
 		
-		private final URL target;
 		private final YoutubedlWrapper cf_yt_wrapper;
 		
-		Operation(File order_file) throws IOException, JAXBException, ParserConfigurationException, SAXException, InterruptedException {
+		Operation(File order_file, URL target) throws IOException, InterruptedException {
 			if (order_file == null) {
 				throw new NullPointerException("\"order_file\" can't to be null");
 			}
-			log.info("Start scan file " + order_file);
-			
-			/**
-			 * Not the best method to parse a plist...
-			 */
-			DocumentBuilderFactory xmlDocumentBuilderFactory = DocumentBuilderFactory.newInstance();
-			DocumentBuilder xmlDocumentBuilder = xmlDocumentBuilderFactory.newDocumentBuilder();
-			xmlDocumentBuilder.setErrorHandler(null);
-			Document document = xmlDocumentBuilder.parse(order_file);
-			
-			JAXBElement<Plist> result = plist_unmarshaller.unmarshal(document, Plist.class);
-			Plist plist = result.getValue();
-			
-			target = plist.getArrayOrDataOrDateOrDictOrRealOrIntegerOrStringOrTrueOrFalse().stream().map(o -> {
-				return (Dict) o;
-			}).flatMap(dict -> {
-				return dict.getKeyOrArrayOrDataOrDateOrDictOrRealOrIntegerOrStringOrTrueOrFalse().stream();
-			}).filter(o -> {
-				return o instanceof com.apple.propertylist.String;
-			}).map(o -> {
-				try {
-					return new URL(((com.apple.propertylist.String) o).getvalue());
-				} catch (MalformedURLException e) {
-					throw new RuntimeException("Can't extract URL", e);
-				}
-			}).findFirst().orElseThrow(() -> new NullPointerException("Can't extract URL from plist file"));
-			
 			cf_yt_wrapper = new YoutubedlWrapper(target, ebp, out_directory);
-			
-			cf_yt_wrapper.download(VideoConst.Resolution.valueOf(System.getProperty("getresolution", VideoConst.Resolution.HD_1080.name())), only_audio);
+			cf_yt_wrapper.download(VideoConst.Resolution.valueOf(System.getProperty("getresolution", VideoConst.Resolution.HD_1080.name())), only_audio);// XXX externalize maxres && out codec while list
 			
 			if (Desktop.isDesktopSupported()) {
-				if (Desktop.getDesktop().moveToTrash(order_file) == false) {
-					log.warn("Can't move to trash " + order_file.getAbsolutePath());
+				if (SystemUtils.IS_OS_WINDOWS) {
+					try {
+						Execprocess ep = new Execprocess(ebp.get("recycle.exe"), Arrays.asList("-f", order_file.getAbsolutePath()));
+						ep.run();
+						if (ep.getExitvalue() != 0) {
+							log.error("Can't exec recycle.exe");
+							throw new FileNotFoundException();
+						}
+					} catch (FileNotFoundException e) {
+						log.warn("Can't found recycle.exe in current PATH");
+						
+						if (order_file.delete() == false) {
+							log.warn("Can't remove " + order_file.getAbsolutePath());
+						}
+					}
+				} else {
+					if (Desktop.getDesktop().moveToTrash(order_file) == false) {
+						log.warn("Can't move to trash " + order_file.getAbsolutePath());
+					}
 				}
 			} else {
 				if (order_file.delete() == false) {

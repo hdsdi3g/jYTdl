@@ -58,8 +58,13 @@ public class App {
 		EventManager event_manager = new EventManager(ebp, new File(System.getProperty("out_dir", System.getProperty("user.home") + File.separator + "Downloads")));
 		event_manager.setOnlyAudio(Boolean.parseBoolean(System.getProperty("only_audio", "false")));
 		
-		FileUtils.iterateFiles(scan_dir, new String[] { "webloc" }, false).forEachRemaining(f -> {
-			event_manager.onFoundPlistFile(f.getAbsoluteFile());
+		FileUtils.iterateFiles(scan_dir, new String[] { "webloc", "url" }, false).forEachRemaining(f -> {
+			String ext = FilenameUtils.getExtension(f.getPath());
+			if (ext.equals("webloc")) {
+				event_manager.onFoundPlistFile(f.getAbsoluteFile());
+			} else if (ext.equals("url")) {
+				event_manager.onFoundURLFile(f.getAbsoluteFile());
+			}
 		});
 		
 		while (true) {
@@ -81,6 +86,8 @@ public class App {
 				if (kind == StandardWatchEventKinds.ENTRY_CREATE) {
 					if (ext.equals("webloc")) {
 						event_manager.onFoundPlistFile(event_from_file.getAbsoluteFile());
+					} else if (ext.equals("url")) {
+						event_manager.onFoundURLFile(event_from_file.getAbsoluteFile());
 					}
 				} else if (kind == StandardWatchEventKinds.ENTRY_DELETE) {
 					event_manager.onLostFile(event_from_file.getAbsoluteFile());
@@ -89,6 +96,8 @@ public class App {
 					
 					if (ext.equals("webloc")) {
 						event_manager.onFoundPlistFile(event_from_file.getAbsoluteFile());
+					} else if (ext.equals("url")) {
+						event_manager.onFoundURLFile(event_from_file.getAbsoluteFile());
 					}
 				}
 			}

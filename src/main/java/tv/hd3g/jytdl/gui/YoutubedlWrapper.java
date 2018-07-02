@@ -82,7 +82,7 @@ public class YoutubedlWrapper {
 		if (source_url == null) {
 			throw new NullPointerException("\"source\" can't to be null");
 		}
-		this.exec_binary_path = eb_path;
+		exec_binary_path = eb_path;
 		if (eb_path == null) {
 			throw new NullPointerException("\"eb_path\" can't to be null");
 		}
@@ -207,7 +207,7 @@ public class YoutubedlWrapper {
 		
 		Optional<Format> o_best_aformat = YoutubeVideoMetadata.orderByBitrate(YoutubeVideoMetadata.keepOnlyThisCodec(mtd.getAllAudioOnlyStreams(), "mp4a")).findFirst();
 		
-		Optional<Format> o_best_vformat = YoutubeVideoMetadata.orderByBitrate(YoutubeVideoMetadata.orderByVideoResolution(YoutubeVideoMetadata.keepOnlyThisCodec(mtd.getAllVideoOnlyStreams(), "avc1")).dropWhile(f -> {
+		Optional<Format> o_best_vformat = YoutubeVideoMetadata.orderByBitrate(YoutubeVideoMetadata.orderByVideoResolution(YoutubeVideoMetadata.keepOnlyThisCodec(mtd.getAllVideoOnlyStreams(), "avc1")).dropWhile(f -> { // XXX can change out codec
 			return f.width > max_res.getWidth() | f.height > max_res.getHeight();
 		})).findFirst();
 		
@@ -345,7 +345,7 @@ public class YoutubedlWrapper {
 						log.warn("Can't thumbnail download image (try " + (pos + 1) + "/" + max_try + ") from URL: " + mtd.thumbnail + "; " + ste.getMessage());
 						if (pos + 1 != max_try) {
 							log.debug("Wait " + pos + " sec for the next try...");
-							Thread.sleep(1000 + (pos * 1000));
+							Thread.sleep(1000 + pos * 1000);
 						}
 					}
 				}
