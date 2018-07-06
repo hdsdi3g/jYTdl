@@ -1,4 +1,4 @@
-package tv.hd3g.jytdl.gui;
+package tv.hd3g.jytdl;
 
 import java.io.File;
 import java.io.FileNotFoundException;

@@ -14,7 +14,7 @@
  * Copyright (C) hdsdi3g for hd3g.tv 2018
  * 
 */
-package tv.hd3g.jytdl.gui;
+package tv.hd3g.jytdl;
 
 import java.io.File;
 import java.io.IOException;
@@ -42,7 +42,7 @@ import hd3gtv.tools.Execprocess;
 import hd3gtv.tools.ExecprocessEvent;
 import hd3gtv.tools.ExecprocessGettext;
 import hd3gtv.tools.VideoConst;
-import tv.hd3g.jytdl.gui.YoutubeVideoMetadata.Format;
+import tv.hd3g.jytdl.YoutubeVideoMetadata.Format;
 
 public class YoutubedlWrapper {
 	
