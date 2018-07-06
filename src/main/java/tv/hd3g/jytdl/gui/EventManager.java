@@ -155,7 +155,7 @@ public class EventManager {
 				
 				return new Operation(f, new WindowsURLParser(new_file).getURL());
 			} catch (Exception e) {
-				throw new RuntimeException("Can't process plist file " + new_file.getName(), e);
+				throw new RuntimeException("Can't process url file " + new_file.getName(), e);
 			}
 		});
 		

@@ -94,6 +94,10 @@ public class App {
 				} else if (kind == StandardWatchEventKinds.ENTRY_MODIFY) {
 					event_manager.onLostFile(event_from_file.getAbsoluteFile());
 					
+					if (event_from_file.exists() == false) {
+						continue;
+					}
+					
 					if (ext.equals("webloc")) {
 						event_manager.onFoundPlistFile(event_from_file.getAbsoluteFile());
 					} else if (ext.equals("url")) {
