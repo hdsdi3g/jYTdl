@@ -20,27 +20,14 @@ import java.awt.Desktop;
 import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.IOException;
-import java.net.MalformedURLException;
 import java.net.URL;
 import java.util.Arrays;
 import java.util.concurrent.ConcurrentHashMap;
 
-import org.w3c.dom.Document;
-
-import javax.xml.bind.JAXBContext;
-import javax.xml.bind.JAXBElement;
 import javax.xml.bind.JAXBException;
-import javax.xml.bind.Unmarshaller;
-import javax.xml.bind.ValidationEventHandler;
-import javax.xml.bind.ValidationEventLocator;
-import javax.xml.parsers.DocumentBuilder;
-import javax.xml.parsers.DocumentBuilderFactory;
 
 import org.apache.commons.lang.SystemUtils;
 import org.apache.log4j.Logger;
-
-import com.apple.propertylist.Dict;
-import com.apple.propertylist.Plist;
 
 import hd3gtv.tools.ExecBinaryPath;
 import hd3gtv.tools.Execprocess;
@@ -58,7 +45,6 @@ public class EventManager {
 	// private final ExecutorService process_executor;
 	
 	private final ConcurrentHashMap<File, Operation> operations_by_order_file;
-	private final Unmarshaller plist_unmarshaller;
 	private final ExecBinaryPath ebp;
 	private final File out_directory;
 	private boolean only_audio;
@@ -79,73 +65,12 @@ public class EventManager {
 			throw new RuntimeException("Invalid out_directory: " + out_directory.getPath() + ", is not au directory");
 		}
 		
-		/*order_executor = Executors.newSingleThreadExecutor(r -> {
-			Thread t = new Thread(r, "Order");
-			t.setDaemon(true);
-			t.setPriority(Thread.MIN_PRIORITY);
-			return t;
-		});
-		
-		process_executor = Executors.newSingleThreadExecutor(r -> {
-			Thread t = new Thread(r, "Process");
-			t.setDaemon(false);
-			t.setPriority(Thread.MIN_PRIORITY);
-			return t;
-		});*/
-		
 		operations_by_order_file = new ConcurrentHashMap<>();
-		
-		JAXBContext jc = JAXBContext.newInstance(Plist.class); // "com.apple.propertylist"
-		plist_unmarshaller = jc.createUnmarshaller();
-		
-		plist_unmarshaller.setEventHandler((ValidationEventHandler) e -> {
-			ValidationEventLocator localtor = e.getLocator();
-			log.warn("XML validation: " + e.getMessage() + " [s" + e.getSeverity() + "] at line " + localtor.getLineNumber() + ", column " + localtor.getColumnNumber() + " offset " + localtor.getOffset() + " node: " + localtor.getNode() + ", object " + localtor.getObject());
-			return true;
-		});
 	}
 	
 	public void setOnlyAudio(boolean only_audio) {
 		this.only_audio = only_audio;
 		// return this;
-	}
-	
-	public void onFoundPlistFile(File new_file) {
-		operations_by_order_file.computeIfAbsent(new_file, f -> {
-			try {
-				
-				log.info("Start scan file " + f);
-				
-				/**
-				 * Not the best method to parse a plist...
-				 */
-				DocumentBuilderFactory xmlDocumentBuilderFactory = DocumentBuilderFactory.newInstance();
-				DocumentBuilder xmlDocumentBuilder = xmlDocumentBuilderFactory.newDocumentBuilder();
-				xmlDocumentBuilder.setErrorHandler(null);
-				Document document = xmlDocumentBuilder.parse(f);
-				
-				JAXBElement<Plist> result = plist_unmarshaller.unmarshal(document, Plist.class);
-				Plist plist = result.getValue();
-				
-				URL target = plist.getArrayOrDataOrDateOrDictOrRealOrIntegerOrStringOrTrueOrFalse().stream().map(o -> {
-					return (Dict) o;
-				}).flatMap(dict -> {
-					return dict.getKeyOrArrayOrDataOrDateOrDictOrRealOrIntegerOrStringOrTrueOrFalse().stream();
-				}).filter(o -> {
-					return o instanceof com.apple.propertylist.String;
-				}).map(o -> {
-					try {
-						return new URL(((com.apple.propertylist.String) o).getvalue());
-					} catch (MalformedURLException e) {
-						throw new RuntimeException("Can't extract URL", e);
-					}
-				}).findFirst().orElseThrow(() -> new NullPointerException("Can't extract URL from plist file"));
-				
-				return new Operation(f, target);
-			} catch (Exception e) {
-				throw new RuntimeException("Can't process plist file " + new_file.getName(), e);
-			}
-		});
 	}
 	
 	public void onFoundURLFile(File new_file) {
@@ -159,13 +84,6 @@ public class EventManager {
 			}
 		});
 		
-	}
-	
-	public void onLostFile(File old_file) {
-		/*Operation old_operation =*/ operations_by_order_file.remove(old_file);
-		/*if (old_operation != null) {
-			old_operation.cancel();
-		}*/
 	}
 	
 	class Operation {
