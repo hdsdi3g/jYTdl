@@ -51,7 +51,6 @@ public class App {
 		scan_dir.toPath().register(watcher, StandardWatchEventKinds.ENTRY_CREATE, StandardWatchEventKinds.ENTRY_DELETE, StandardWatchEventKinds.ENTRY_MODIFY, StandardWatchEventKinds.OVERFLOW);
 		
 		EventManager event_manager = new EventManager(ex_finder, new File(System.getProperty("out_dir", System.getProperty("user.home") + File.separator + "Downloads")));
-		event_manager.setOnlyAudio(Boolean.parseBoolean(System.getProperty("only_audio", "false")));
 		
 		FileUtils.iterateFiles(scan_dir, new String[] { "url", "URL" }, false).forEachRemaining(f -> {
 			String ext = FilenameUtils.getExtension(f.getPath());

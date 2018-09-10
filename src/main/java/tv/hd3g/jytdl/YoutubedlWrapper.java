@@ -25,6 +25,7 @@ import java.net.URLConnection;
 import java.text.Normalizer;
 import java.util.Arrays;
 import java.util.Optional;
+import java.util.Properties;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
@@ -79,8 +80,9 @@ public class YoutubedlWrapper {
 	private final YoutubeVideoMetadata mtd;
 	private final File out_directory;
 	private final ExecutorService message_out_executor;
+	private final Properties prefs;
 	
-	public YoutubedlWrapper(URL source_url, ExecutableFinder eb_path, File out_directory) {
+	public YoutubedlWrapper(URL source_url, ExecutableFinder eb_path, File out_directory, Properties prefs) {
 		if (source_url == null) {
 			throw new NullPointerException("\"source\" can't to be null");
 		}
@@ -97,6 +99,10 @@ public class YoutubedlWrapper {
 			throw new RuntimeException("Invalid out_directory: " + out_directory.getPath() + ", can't write");
 		} else if (out_directory.isDirectory() == false) {
 			throw new RuntimeException("Invalid out_directory: " + out_directory.getPath() + ", is not au directory");
+		}
+		this.prefs = prefs;
+		if (prefs == null) {
+			throw new NullPointerException("\"prefs\" can't to be null");
 		}
 		
 		message_out_executor = Executors.newFixedThreadPool(1);
@@ -182,18 +188,19 @@ public class YoutubedlWrapper {
 	/**
 	 * @return this
 	 */
-	YoutubedlWrapper download(int max_res_w, int max_res_h, boolean only_audio) throws IOException, InterruptedException {
+	YoutubedlWrapper download() throws IOException, InterruptedException {
 		String normalized_title = removeFilenameForbiddenChars(PATTERN_Combining_Diacritical_Marks.matcher(Normalizer.normalize(mtd.fulltitle, Normalizer.Form.NFD)).replaceAll("").trim());
 		String normalized_uploader = removeFilenameForbiddenChars(PATTERN_Combining_Diacritical_Marks.matcher(Normalizer.normalize(mtd.uploader, Normalizer.Form.NFD)).replaceAll("").trim());
 		
 		String base_out_filename = normalized_title + " ➠ " + normalized_uploader + "  " + mtd.id;
 		
-		Optional<Format> o_best_aformat = YoutubeVideoMetadata.orderByBitrate(YoutubeVideoMetadata.keepOnlyThisCodec(mtd.getAllAudioOnlyStreams(), "mp4a")).findFirst();
+		Optional<Format> o_best_aformat = YoutubeVideoMetadata.orderByBitrate(YoutubeVideoMetadata.keepOnlyThisCodec(mtd.getAllAudioOnlyStreams(), prefs.getProperty("best_aformat", "mp4a"))).findFirst();
 		
-		Optional<Format> o_best_vformat = YoutubeVideoMetadata.orderByBitrate(YoutubeVideoMetadata.orderByVideoResolution(YoutubeVideoMetadata.keepOnlyThisCodec(mtd.getAllVideoOnlyStreams(), "avc1")).dropWhile(f -> { // XXX can change out codec
-			return f.width > max_res_w | f.height > max_res_h;
+		Optional<Format> o_best_vformat = YoutubeVideoMetadata.orderByBitrate(YoutubeVideoMetadata.orderByVideoResolution(YoutubeVideoMetadata.keepOnlyThisCodec(mtd.getAllVideoOnlyStreams(), prefs.getProperty("best_vformat", "avc1"))).dropWhile(f -> {
+			return f.width > Integer.parseInt(prefs.getProperty("max_width_res", "1920")) | f.height > Integer.parseInt(prefs.getProperty("max_height_res", "1080"));
 		})).findFirst();
 		
+		boolean only_audio = Boolean.parseBoolean(prefs.getProperty("only_audio", "false"));
 		if (o_best_aformat.isPresent() == false | o_best_vformat.isPresent() == false) {
 			if (only_audio && o_best_aformat.isPresent() == false) {
 				throw new IOException("Can't found best audio codec for " + mtd + " in only-audio mode");

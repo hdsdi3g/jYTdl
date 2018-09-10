@@ -19,8 +19,10 @@ package tv.hd3g.jytdl;
 import java.awt.Desktop;
 import java.io.File;
 import java.io.FileNotFoundException;
+import java.io.FileReader;
 import java.io.IOException;
 import java.net.URL;
+import java.util.Properties;
 import java.util.concurrent.ConcurrentHashMap;
 
 import org.apache.commons.lang.SystemUtils;
@@ -37,9 +39,9 @@ public class EventManager {
 	private final ConcurrentHashMap<File, Operation> operations_by_order_file;
 	private final ExecutableFinder ebp;
 	private final File out_directory;
-	private boolean only_audio;
+	private final Properties prefs;
 	
-	public EventManager(ExecutableFinder ebp, File out_directory) {
+	public EventManager(ExecutableFinder ebp, File out_directory) throws IOException {
 		this.ebp = ebp;
 		if (ebp == null) {
 			throw new NullPointerException("\"ebp\" can't to be null");
@@ -56,11 +58,9 @@ public class EventManager {
 		}
 		
 		operations_by_order_file = new ConcurrentHashMap<>();
-	}
-	
-	public void setOnlyAudio(boolean only_audio) {
-		this.only_audio = only_audio;
-		// return this;
+		
+		prefs = new Properties();
+		prefs.load(new FileReader(new File("prefs.properties")));
 	}
 	
 	public void onFoundURLFile(File new_file) {
@@ -78,15 +78,11 @@ public class EventManager {
 	
 	class Operation {
 		
-		private final YoutubedlWrapper cf_yt_wrapper;
-		
 		Operation(File order_file, URL target) throws IOException, InterruptedException {
 			if (order_file == null) {
 				throw new NullPointerException("\"order_file\" can't to be null");
 			}
-			cf_yt_wrapper = new YoutubedlWrapper(target, ebp, out_directory);
-			String getresolution = System.getProperty("getresolution", "1920x1080");
-			cf_yt_wrapper.download(Integer.parseInt(getresolution.split("x")[0]), Integer.parseInt(getresolution.split("x")[1]), only_audio);// XXX out codec while list
+			new YoutubedlWrapper(target, ebp, out_directory, prefs).download();
 			
 			if (Desktop.isDesktopSupported()) {
 				if (SystemUtils.IS_OS_WINDOWS) {
