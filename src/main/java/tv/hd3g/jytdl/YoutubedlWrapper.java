@@ -181,7 +181,7 @@ public class YoutubedlWrapper {
 		String l1 = txt.replaceAll("<", "[").replaceAll(">", "]").replaceAll(":", "-").replaceAll("/", "-").replaceAll("\\\\", "-").replaceAll("\\|", " ").replaceAll("\\?", "").replaceAll("\\*", " ").replaceAll("\\\"", "”");
 		// Advanced Damage & Decay FX Tutorial! 100% After Effects!
 		l1 = l1.replaceAll("&", "-").replaceAll("%", "");
-		l1 = l1.replaceAll("    ", " ").replaceAll("   ", " ").replaceAll("  ", " ").replaceAll("---", "-").replaceAll("--", "-");
+		l1 = l1.replaceAll("        ", " ").replaceAll("       ", " ").replaceAll("      ", " ").replaceAll("     ", " ").replaceAll("    ", " ").replaceAll("   ", " ").replaceAll("  ", " ").replaceAll("---", "-").replaceAll("--", "-");
 		return l1;
 	}
 	
@@ -369,7 +369,11 @@ public class YoutubedlWrapper {
 			ept.addParameters("--category", category);
 		});
 		
-		ept.addParameters("--copyright", mtd.license);
+		if (mtd.license != null) {
+			if (mtd.license.trim().isEmpty() == false) {
+				ept.addParameters("--copyright", mtd.license);
+			}
+		}
 		
 		if (mtd.age_limit > 13) {
 			ept.addParameters("--advisory", "explicit");

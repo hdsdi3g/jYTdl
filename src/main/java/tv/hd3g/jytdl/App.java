@@ -38,6 +38,8 @@ public class App {
 		t.setPriority(Thread.MAX_PRIORITY);
 		t.start();
 		
+		// TODO 4k problem: mp4 don't have 4k, but webm, yes.
+		
 		File scan_dir = new File(System.getProperty("scan_dir", System.getProperty("user.home") + File.separator + "Desktop"));
 		if (scan_dir.exists() == false) {
 			throw new FileNotFoundException("Can't found " + scan_dir + " directory");
