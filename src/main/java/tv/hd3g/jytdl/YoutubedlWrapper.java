@@ -23,10 +23,12 @@ import java.net.SocketTimeoutException;
 import java.net.URL;
 import java.net.URLConnection;
 import java.text.Normalizer;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Optional;
-import java.util.function.Consumer;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
@@ -38,11 +40,12 @@ import org.apache.logging.log4j.Logger;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 
-import hd3gtv.tools.ExecBinaryPath;
-import hd3gtv.tools.Execprocess;
-import hd3gtv.tools.ExecprocessEvent;
-import hd3gtv.tools.ExecprocessGettext;
-import hd3gtv.tools.VideoConst;
+import tv.hd3g.execprocess.CommandLineProcessor;
+import tv.hd3g.execprocess.ExecProcessText;
+import tv.hd3g.execprocess.ExecutableFinder;
+import tv.hd3g.execprocess.InteractiveExecProcessHandler;
+import tv.hd3g.fflauncher.FFLogLevel;
+import tv.hd3g.fflauncher.FFmpeg;
 import tv.hd3g.jytdl.YoutubeVideoMetadata.Format;
 
 public class YoutubedlWrapper {
@@ -54,32 +57,30 @@ public class YoutubedlWrapper {
 	 */
 	public static final Pattern PATTERN_Combining_Diacritical_Marks = Pattern.compile("\\p{InCombiningDiacriticalMarks}+");
 	
-	static void doChecks(ExecBinaryPath eb_path) throws IOException {
-		ExecprocessGettext exec = new ExecprocessGettext(eb_path.get("youtube-dl"), Arrays.asList("--version"), eb_path);
-		exec.setMaxexectime(10);
-		exec.start();
-		log.info("Use youtube-dl version " + exec.getResultstdout().toString());
+	static void doChecks(ExecutableFinder exec_finder) throws IOException {
+		ScheduledExecutorService max_exec_time_scheduler = Executors.newScheduledThreadPool(1);
 		
-		exec = new ExecprocessGettext(eb_path.get("ffmpeg"), Arrays.asList("-version"), eb_path);
-		exec.setMaxexectime(3);
-		exec.setEndlinewidthnewline(true);
-		exec.start();
-		log.info("Use " + exec.getResultstdout().toString().split("\\r?\\n")[0]);
+		ExecProcessText exec = new ExecProcessText("youtube-dl", exec_finder).addParameters("--version").setMaxExecutionTime(10, TimeUnit.SECONDS, max_exec_time_scheduler);
+		String version = exec.run().checkExecution().getStdouterr(false, "; ");
 		
-		exec = new ExecprocessGettext(eb_path.get("atomicparsley"), Arrays.asList("-version"), eb_path);
-		exec.setMaxexectime(3);
-		exec.start();
-		log.info("Use " + exec.getResultstdout().toString());
+		log.info("Use youtube-dl version " + version);
+		
+		FFmpeg ffmpeg = new FFmpeg(exec_finder, new CommandLineProcessor().createEmptyCommandLine("ffmpeg"));
+		log.info("Use ffmpeg " + ffmpeg.getAbout().getVersion().header_version);
+		
+		exec = new ExecProcessText("atomicparsley", exec_finder).addParameters("-version").setMaxExecutionTime(3, TimeUnit.SECONDS, max_exec_time_scheduler);
+		version = exec.run().checkExecution().getStdouterr(false, "; ");
+		log.info("Use " + version);
 	}
 	
-	private final ExecBinaryPath exec_binary_path;
+	private final ExecutableFinder exec_binary_path;
 	
 	private final String youtube_id;
 	private final YoutubeVideoMetadata mtd;
 	private final File out_directory;
-	// private final CompletableFuture<?> process_chain;
+	private final ExecutorService message_out_executor;
 	
-	public YoutubedlWrapper(URL source_url, ExecBinaryPath eb_path, File out_directory) {
+	public YoutubedlWrapper(URL source_url, ExecutableFinder eb_path, File out_directory) {
 		if (source_url == null) {
 			throw new NullPointerException("\"source\" can't to be null");
 		}
@@ -97,6 +98,8 @@ public class YoutubedlWrapper {
 		} else if (out_directory.isDirectory() == false) {
 			throw new RuntimeException("Invalid out_directory: " + out_directory.getPath() + ", is not au directory");
 		}
+		
+		message_out_executor = Executors.newFixedThreadPool(1);
 		
 		log.info("Prepare download for " + source_url);
 		
@@ -130,6 +133,24 @@ public class YoutubedlWrapper {
 		}
 	}
 	
+	private void youtubedlExec(InteractiveExecProcessHandler interactive_handler, File working_dir, String... user_params) throws IOException {
+		ExecProcessText ept = new ExecProcessText("youtube-dl", exec_binary_path);
+		
+		ept.addBulkParameters("--no-color --no-playlist --retries 3");
+		
+		String limit_rate = System.getProperty("limit_rate");
+		if (limit_rate != null) {
+			if (limit_rate.equals("") == false) {
+				ept.addParameters("--limit-rate", String.valueOf(limit_rate));
+			}
+		}
+		ept.addParameters(Arrays.asList(user_params));
+		ept.setInteractiveHandler(interactive_handler, message_out_executor);
+		ept.setWorkingDirectory(working_dir);
+		
+		ept.run().checkExecution();
+	}
+	
 	private String youtubedlExec(String... user_params) throws IOException {
 		return youtubedlExec(new File(System.getProperty("java.io.tmpdir")), user_params);
 	}
@@ -137,56 +158,17 @@ public class YoutubedlWrapper {
 	private String youtubedlExec(File working_dir, String... user_params) throws IOException {
 		StringBuffer sb = new StringBuffer();
 		
-		youtubedlExec(out -> {
-			sb.append(out);
-			sb.append(System.getProperty("line.separator"));
-		}, err -> {
-			System.err.println("Youtube-dl | " + err);
+		youtubedlExec((source, line, is_std_err) -> {
+			if (is_std_err) {
+				System.err.println("Youtube-dl | " + line);
+			} else {
+				sb.append(line);
+				sb.append(System.getProperty("line.separator"));
+			}
+			return null;
 		}, working_dir, user_params);
 		
 		return sb.toString();
-	}
-	
-	private void youtubedlExec(Consumer<String> onStdOut, Consumer<String> onStdErr, File working_dir, String... user_params) throws IOException {
-		ArrayList<String> params = new ArrayList<>();
-		params = new ArrayList<>();
-		params.add("--no-color");
-		params.add("--no-playlist");
-		params.add("--retries");
-		params.add("3");
-		String limit_rate = System.getProperty("limit_rate");
-		if (limit_rate != null) {
-			if (limit_rate.equals("") == false) {
-				params.add("--limit-rate");
-				params.add(limit_rate); // 30000k
-			}
-		}
-		params.addAll(Arrays.asList(user_params));
-		
-		Execprocess runprocess = new Execprocess(exec_binary_path.get("youtube-dl"), params, new ExecprocessEvent() {
-			
-			public void onStdout(String message) {
-				onStdOut.accept(message);
-			}
-			
-			public void onStderr(String message) {
-				onStdErr.accept(message);
-			}
-			
-			public void onError(IOException ioe) {
-				log.error("Error during Youtube-dl execution", ioe);
-			}
-			
-		});
-		runprocess.setExecBinaryPath(exec_binary_path);
-		runprocess.setWorkingDirectory(working_dir);
-		
-		log.debug("Exec " + runprocess.getCommandline());
-		runprocess.run();
-		
-		if (runprocess.getExitvalue() != 0) {
-			throw new IOException("Error with Youtube-dl, return code is " + runprocess.getExitvalue() + ", command line: " + runprocess.getCommandline());
-		}
 	}
 	
 	public static String removeFilenameForbiddenChars(String txt) {
@@ -200,7 +182,7 @@ public class YoutubedlWrapper {
 	/**
 	 * @return this
 	 */
-	YoutubedlWrapper download(VideoConst.Resolution max_res, boolean only_audio) throws IOException, InterruptedException {
+	YoutubedlWrapper download(int max_res_w, int max_res_h, boolean only_audio) throws IOException, InterruptedException {
 		String normalized_title = removeFilenameForbiddenChars(PATTERN_Combining_Diacritical_Marks.matcher(Normalizer.normalize(mtd.fulltitle, Normalizer.Form.NFD)).replaceAll("").trim());
 		String normalized_uploader = removeFilenameForbiddenChars(PATTERN_Combining_Diacritical_Marks.matcher(Normalizer.normalize(mtd.uploader, Normalizer.Form.NFD)).replaceAll("").trim());
 		
@@ -209,7 +191,7 @@ public class YoutubedlWrapper {
 		Optional<Format> o_best_aformat = YoutubeVideoMetadata.orderByBitrate(YoutubeVideoMetadata.keepOnlyThisCodec(mtd.getAllAudioOnlyStreams(), "mp4a")).findFirst();
 		
 		Optional<Format> o_best_vformat = YoutubeVideoMetadata.orderByBitrate(YoutubeVideoMetadata.orderByVideoResolution(YoutubeVideoMetadata.keepOnlyThisCodec(mtd.getAllVideoOnlyStreams(), "avc1")).dropWhile(f -> { // XXX can change out codec
-			return f.width > max_res.getWidth() | f.height > max_res.getHeight();
+			return f.width > max_res_w | f.height > max_res_h;
 		})).findFirst();
 		
 		if (o_best_aformat.isPresent() == false | o_best_vformat.isPresent() == false) {
@@ -279,44 +261,38 @@ public class YoutubedlWrapper {
 		File mux_outfile = new File(temp_dir.getAbsolutePath() + File.separator + "mux." + ext);
 		log.info("Assemble media files " + mtd + " to " + mux_outfile.getName());
 		
-		ArrayList<String> ff_params = new ArrayList<>();
-		ff_params.addAll(Arrays.asList("-y", "-v", "0"));
+		FFmpeg ffmpeg = new FFmpeg(exec_binary_path, new CommandLineProcessor().createEmptyCommandLine("ffmpeg"));
+		
+		ffmpeg.setHidebanner().setOverwriteOutputFiles().setLogLevel(FFLogLevel.warning, false, false);
+		
 		if (only_audio == false) {
-			ff_params.addAll(Arrays.asList("-i", v_outfile.getAbsolutePath()));
+			ffmpeg.addSimpleInputSource(v_outfile.getAbsolutePath());
 		}
-		ff_params.addAll(Arrays.asList("-i", a_outfile.getAbsolutePath()));
+		ffmpeg.addSimpleInputSource(a_outfile.getAbsolutePath());
 		
 		if (only_audio) {
-			ff_params.addAll(Arrays.asList("-codec:a", "copy"));
+			ffmpeg.addAudioCodecName("copy", -1);
 		} else {
-			ff_params.addAll(Arrays.asList("-map", "0:0", "-map", "1:0", "-vsync", "1", "-codec:v", "copy", "-codec:a", "copy"));
+			ffmpeg.addMap(0, 0);
+			ffmpeg.addMap(1, 0);
+			ffmpeg.addVsync(1);
+			ffmpeg.addVideoCodecName("copy", -1);
+			ffmpeg.addAudioCodecName("copy", -1);
 		}
-		ff_params.addAll(Arrays.asList("-movflags", "faststart", "-f", "mp4"));
-		ff_params.add(mux_outfile.getAbsolutePath());
+		ffmpeg.addFastStartMovMp4File();
+		ffmpeg.addSimpleOutputDestination(mux_outfile.getAbsolutePath(), "mp4");
 		
-		Execprocess runprocess_ffmpeg = new Execprocess(exec_binary_path.get("ffmpeg"), ff_params, new ExecprocessEvent() {
-			
-			public void onStdout(String message) {
-				System.out.println("ffmpeg | " + message);
+		ExecProcessText ept_ffmpeg = ffmpeg.createExec();
+		ept_ffmpeg.setInteractiveHandler((source, line, is_std_err) -> {
+			if (is_std_err) {
+				System.err.println("ffmpeg | " + line);
+			} else {
+				System.out.println("ffmpeg | " + line);
 			}
-			
-			public void onStderr(String message) {
-				System.err.println("ffmpeg | " + message);
-			}
-			
-			public void onError(IOException ioe) {
-				log.error("Error during ffmpeg execution", ioe);
-			}
-			
-		});
-		runprocess_ffmpeg.setExecBinaryPath(exec_binary_path);
+			return null;
+		}, message_out_executor);
 		
-		log.debug("Exec " + runprocess_ffmpeg.getCommandline());
-		runprocess_ffmpeg.run();
-		
-		if (runprocess_ffmpeg.getExitvalue() != 0) {
-			throw new IOException("Error with ffmpeg, return code is " + runprocess_ffmpeg.getExitvalue());
-		}
+		ept_ffmpeg.run().checkExecution();
 		
 		File thumbnail_image = null;
 		if (mtd.thumbnail != null) {
@@ -364,47 +340,32 @@ public class YoutubedlWrapper {
 		/**
 		 * Add mp4 tags
 		 */
-		ArrayList<String> ap_params = new ArrayList<>();
-		ap_params.add(mux_outfile.getAbsolutePath());
-		ap_params.add("--artist");
-		ap_params.add(mtd.uploader);
-		ap_params.add("--title");
-		ap_params.add(mtd.fulltitle);
-		ap_params.add("--album");
-		ap_params.add(mtd.extractor_key);
-		ap_params.add("--grouping");
-		ap_params.add(mtd.extractor_key);
-		ap_params.add("--comment");
-		ap_params.add(mtd.description.substring(0, Math.min(255, mtd.description.length())));
-		ap_params.add("--description");
-		ap_params.add(mtd.description.substring(0, Math.min(255, mtd.description.length())));
-		ap_params.add("--year");
-		ap_params.add(mtd.upload_date.substring(0, 4));
-		ap_params.add("--compilation");
-		ap_params.add("true");
-		if (thumbnail_image != null) {
-			ap_params.add("--artwork");
-			ap_params.add(thumbnail_image.getAbsolutePath());
-		}
-		ap_params.add("--encodingTool");
-		ap_params.add("Atomicparsley");
+		final ExecProcessText ept = new ExecProcessText("atomicparsley", exec_binary_path);
 		
-		ap_params.add("--podcastURL");
-		ap_params.add(mtd.uploader_url);
-		ap_params.add("--podcastGUID");
-		ap_params.add(mtd.webpage_url);
+		ept.addParameters(mux_outfile.getAbsolutePath());
+		ept.addParameters("--artist", mtd.uploader);
+		ept.addParameters("--title", mtd.fulltitle);
+		ept.addParameters("--album", mtd.extractor_key);
+		ept.addParameters("--grouping", mtd.extractor_key);
+		ept.addParameters("--comment", mtd.description.substring(0, Math.min(255, mtd.description.length())));
+		ept.addParameters("--description", mtd.description.substring(0, Math.min(255, mtd.description.length())));
+		ept.addParameters("--year", mtd.upload_date.substring(0, 4));
+		ept.addParameters("--compilation", "true");
+		if (thumbnail_image != null) {
+			ept.addParameters("--artwork", thumbnail_image.getAbsolutePath());
+		}
+		ept.addParameters("--encodingTool", "Atomicparsley");
+		ept.addParameters("--podcastURL", mtd.uploader_url);
+		ept.addParameters("--podcastGUID", mtd.webpage_url);
 		
 		mtd.categories.stream().findFirst().ifPresent(category -> {
-			ap_params.add("--category");
-			ap_params.add(category);
+			ept.addParameters("--category", category);
 		});
 		
-		ap_params.add("--copyright");
-		ap_params.add(mtd.license);
+		ept.addParameters("--copyright", mtd.license);
 		
 		if (mtd.age_limit > 13) {
-			ap_params.add("--advisory");
-			ap_params.add("explicit");
+			ept.addParameters("--advisory", "explicit");
 		}
 		
 		/**
@@ -418,19 +379,13 @@ public class YoutubedlWrapper {
 		 * (10) TV Show
 		 * (11) Booklet
 		 */
-		ap_params.add("--stik");
-		ap_params.add("Normal");
-		
-		ap_params.add("--TVNetwork");
-		ap_params.add(mtd.extractor_key);
-		
-		ap_params.add("--TVShowName");
-		ap_params.add(mtd.uploader);
+		ept.addParameters("--stik", "Normal");
+		ept.addParameters("--TVNetwork", mtd.extractor_key);
+		ept.addParameters("--TVShowName", mtd.uploader);
 		
 		if (mtd.tags != null) {
 			if (mtd.tags.isEmpty() == false) {
-				ap_params.add("--keyword");
-				ap_params.add(mtd.tags.stream().collect(Collectors.joining(",")));
+				ept.addParameters("--keyword", mtd.tags.stream().collect(Collectors.joining(",")));
 			}
 		}
 		
@@ -439,39 +394,25 @@ public class YoutubedlWrapper {
 			output_file = new File(out_directory.getCanonicalPath() + File.separator + base_out_filename + "." + System.getProperty("outextension-onlyaudio", "m4a"));
 		}
 		
-		ap_params.add("--output");
-		ap_params.add(output_file.getAbsolutePath());
+		ept.addParameters("--output", output_file.getAbsolutePath());
 		
 		log.info("Add tags from " + mtd + " to " + output_file.getName());
 		
-		Execprocess runprocess_atomicparsley = new Execprocess(exec_binary_path.get("atomicparsley"), ap_params, new ExecprocessEvent() {
-			
-			public void onStdout(String message) {
-				if (message.trim().isEmpty()) {
-					return;
+		ept.setInteractiveHandler((source, line, is_std_err) -> {
+			if (line.trim().isEmpty()) {
+				return null;
+			}
+			if (is_std_err) {
+				System.err.println("atomicparsley | " + line);
+			} else {
+				if (line.trim().startsWith("Progress:") == false) {
+					System.out.println("atomicparsley | " + line);
 				}
-				if (message.trim().startsWith("Progress:") == false) {
-					System.out.println("atomicparsley | " + message);
-				}
 			}
-			
-			public void onStderr(String message) {
-				System.err.println("atomicparsley | " + message);
-			}
-			
-			public void onError(IOException ioe) {
-				log.error("Error during atomicparsley execution", ioe);
-			}
-			
-		});
-		runprocess_atomicparsley.setExecBinaryPath(exec_binary_path);
+			return null;
+		}, message_out_executor);
 		
-		log.debug("Exec " + runprocess_atomicparsley.getCommandline());
-		runprocess_atomicparsley.run();
-		
-		if (runprocess_atomicparsley.getExitvalue() != 0) {
-			throw new IOException("Error with atomicparsley, return code is " + runprocess_atomicparsley.getExitvalue());
-		}
+		ept.run().checkExecution();
 		
 		log.debug("Remove " + temp_dir);
 		FileUtils.forceDelete(temp_dir);
@@ -482,10 +423,13 @@ public class YoutubedlWrapper {
 	private void simpleYtDownload(File output_file, Format format) throws IOException {
 		log.info("Download " + mtd + " download format: \"" + format + "\" to \"" + output_file.getName() + "\"");
 		
-		youtubedlExec(out -> {
-			System.out.println("Youtube-dl | " + out);
-		}, err -> {
-			System.err.println("Youtube-dl | " + err);
+		youtubedlExec((source, line, is_std_err) -> {
+			if (is_std_err) {
+				System.err.println("Youtube-dl | " + line);
+			} else {
+				System.out.println("Youtube-dl | " + line);
+			}
+			return null;
 		}, output_file.getParentFile(), "--format", format.format_id, "--output", output_file.getPath(), mtd.webpage_url);
 	}
 	

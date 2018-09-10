@@ -15,7 +15,7 @@ import org.apache.commons.io.FilenameUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-import hd3gtv.tools.ExecBinaryPath;
+import tv.hd3g.execprocess.ExecutableFinder;
 
 public class App {
 	
@@ -25,10 +25,10 @@ public class App {
 		/**
 		 * Async test YoutubedlWrapper
 		 */
-		ExecBinaryPath ebp = new ExecBinaryPath();
+		ExecutableFinder ex_finder = new ExecutableFinder();
 		Thread t = new Thread(() -> {
 			try {
-				YoutubedlWrapper.doChecks(ebp);
+				YoutubedlWrapper.doChecks(ex_finder);
 			} catch (IOException e) {
 				log.fatal("Checking error", e);
 				System.exit(1);
@@ -50,7 +50,7 @@ public class App {
 		WatchService watcher = FileSystems.getDefault().newWatchService();
 		scan_dir.toPath().register(watcher, StandardWatchEventKinds.ENTRY_CREATE, StandardWatchEventKinds.ENTRY_DELETE, StandardWatchEventKinds.ENTRY_MODIFY, StandardWatchEventKinds.OVERFLOW);
 		
-		EventManager event_manager = new EventManager(ebp, new File(System.getProperty("out_dir", System.getProperty("user.home") + File.separator + "Downloads")));
+		EventManager event_manager = new EventManager(ex_finder, new File(System.getProperty("out_dir", System.getProperty("user.home") + File.separator + "Downloads")));
 		event_manager.setOnlyAudio(Boolean.parseBoolean(System.getProperty("only_audio", "false")));
 		
 		FileUtils.iterateFiles(scan_dir, new String[] { "url", "URL" }, false).forEachRemaining(f -> {

@@ -21,34 +21,25 @@ import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.net.URL;
-import java.util.Arrays;
 import java.util.concurrent.ConcurrentHashMap;
 
 import org.apache.commons.lang.SystemUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-import hd3gtv.tools.ExecBinaryPath;
-import hd3gtv.tools.Execprocess;
-import hd3gtv.tools.VideoConst;
+import tv.hd3g.execprocess.ExecProcessText;
+import tv.hd3g.execprocess.ExecutableFinder;
 
 public class EventManager {
 	
-	static {
-		System.setProperty("javax.xml.bind.JAXBContextFactory", "org.eclipse.persistence.jaxb.JAXBContextFactory");
-	}
-	
 	private static final Logger log = LogManager.getLogger();
 	
-	// private final ExecutorService order_executor;
-	// private final ExecutorService process_executor;
-	
 	private final ConcurrentHashMap<File, Operation> operations_by_order_file;
-	private final ExecBinaryPath ebp;
+	private final ExecutableFinder ebp;
 	private final File out_directory;
 	private boolean only_audio;
 	
-	public EventManager(ExecBinaryPath ebp, File out_directory) {
+	public EventManager(ExecutableFinder ebp, File out_directory) {
 		this.ebp = ebp;
 		if (ebp == null) {
 			throw new NullPointerException("\"ebp\" can't to be null");
@@ -94,17 +85,15 @@ public class EventManager {
 				throw new NullPointerException("\"order_file\" can't to be null");
 			}
 			cf_yt_wrapper = new YoutubedlWrapper(target, ebp, out_directory);
-			cf_yt_wrapper.download(VideoConst.Resolution.valueOf(System.getProperty("getresolution", VideoConst.Resolution.HD_1080.name())), only_audio);// XXX externalize maxres && out codec while list
+			String getresolution = System.getProperty("getresolution", "1920x1080");
+			cf_yt_wrapper.download(Integer.parseInt(getresolution.split("x")[0]), Integer.parseInt(getresolution.split("x")[1]), only_audio);// XXX out codec while list
 			
 			if (Desktop.isDesktopSupported()) {
 				if (SystemUtils.IS_OS_WINDOWS) {
 					try {
-						Execprocess ep = new Execprocess(ebp.get("recycle.exe"), Arrays.asList("-f", order_file.getAbsolutePath()));
-						ep.run();
-						if (ep.getExitvalue() != 0) {
-							log.error("Can't exec recycle.exe");
-							throw new FileNotFoundException();
-						}
+						ExecProcessText ept = new ExecProcessText("recycle", ebp);
+						ept.addParameters("-f", order_file.getAbsolutePath());
+						ept.run().checkExecution();
 					} catch (FileNotFoundException e) {
 						log.warn("Can't found recycle.exe in current PATH");
 						
