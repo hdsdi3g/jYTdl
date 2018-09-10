@@ -19,6 +19,7 @@ package hd3gtv.tools;
 import java.io.File;
 import java.io.IOException;
 
+@Deprecated
 public interface ExecprocessEvent {
 	
 	/**

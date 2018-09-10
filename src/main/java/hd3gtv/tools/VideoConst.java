@@ -19,11 +19,13 @@ package hd3gtv.tools;
 
 import java.awt.Point;
 
-import org.apache.log4j.Logger;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
+@Deprecated
 public final class VideoConst {
 	
-	public final static Logger Log = Logger.getLogger(VideoConst.class);
+	private static final Logger log = LogManager.getLogger();
 	
 	public enum Systemvideo {
 		PAL, NTSC, CINEMA, OTHER, CINEMA_SCAN, HFR_PAL, HFR_NTSC, HFR_CINEMA_SCAN;
@@ -120,7 +122,7 @@ public final class VideoConst {
 			if (fps == 30f) {
 				return FPS_30;
 			}
-			if ((fps > 29.8f) && (fps < 30f)) {
+			if (fps > 29.8f && fps < 30f) {
 				return FPS_2997;
 			}
 			if (fps == 50f) {
@@ -135,10 +137,10 @@ public final class VideoConst {
 			if (fps == 48f) {
 				return FPS_48;
 			}
-			if ((fps > 23.8f) && (fps < 24f)) {
+			if (fps > 23.8f && fps < 24f) {
 				return FPS_23976;
 			}
-			if ((fps > 59.8f) && (fps < 60f)) {
+			if (fps > 59.8f && fps < 60f) {
 				return FPS_5994;
 			}
 			return OTHER;
@@ -193,7 +195,7 @@ public final class VideoConst {
 					return null;
 				}
 				float real_fps = (float) left / (float) right;
-				return getFramerate((float) Math.round(real_fps * 10f) / 10f);
+				return getFramerate(Math.round(real_fps * 10f) / 10f);
 			} catch (NumberFormatException e) {
 				return null;
 			}
@@ -561,7 +563,7 @@ public final class VideoConst {
 		Resolution resolution = Resolution.getResolution(width, height);
 		Systemvideo systemvideo = Framerate.getSystem(framerate);
 		
-		if ((resolution == Resolution.OTHER) || (systemvideo == Systemvideo.OTHER)) {
+		if (resolution == Resolution.OTHER || systemvideo == Systemvideo.OTHER) {
 			StringBuffer sb = new StringBuffer();
 			sb.append(width);
 			sb.append("x");
@@ -640,7 +642,7 @@ public final class VideoConst {
 			try {
 				ivalue = Integer.parseInt(intvalue);
 			} catch (NumberFormatException e) {
-				Log.error("Can't parse audio frequency value, rawvalue: " + value, e);
+				log.error("Can't parse audio frequency value, rawvalue: " + value, e);
 				return null;
 			}
 			if (ivalue == 48000) {

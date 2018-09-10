@@ -25,11 +25,9 @@ import java.util.HashMap;
 import java.util.function.BinaryOperator;
 
 import org.apache.commons.lang.SystemUtils;
-import org.apache.log4j.Logger;
 
+@Deprecated
 public class ExecBinaryPath {
-	
-	public final static Logger Log = Logger.getLogger(ExecBinaryPath.class);
 	
 	private final ArrayList<String> paths;
 	private final static String[] WINDOWS_EXEC_EXTENTIONS = { "exe", "com", "bat", "cmd" };
@@ -56,7 +54,7 @@ public class ExecBinaryPath {
 			});
 		}*/
 		
-		declared_in_configuration = new HashMap<String, File>();
+		declared_in_configuration = new HashMap<>();
 		
 		System.getProperties().forEach((k, v) -> {
 			if (((String) k).startsWith("exec.")) {

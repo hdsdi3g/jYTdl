@@ -16,6 +16,7 @@
 */
 package hd3gtv.tools;
 
+@Deprecated
 public interface StoppableProcessing {
 	
 	public boolean isWantToStopCurrentProcessing();

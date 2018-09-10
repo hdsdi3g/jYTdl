@@ -18,6 +18,7 @@ package hd3gtv.tools;
 
 import java.io.IOException;
 
+@Deprecated
 public class ExecprocessTooLongTimeExecutionException extends IOException {
 	
 	public ExecprocessTooLongTimeExecutionException(int normal_duration_sec) {

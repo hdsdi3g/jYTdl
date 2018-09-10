@@ -21,6 +21,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 
+@Deprecated
 public class ExecprocessOutputstreamHandler implements ExecprocessOutputstream {
 	
 	private InputStream inputstream;

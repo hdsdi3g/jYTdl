@@ -20,6 +20,7 @@ import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 
+@Deprecated
 public class FreeDiskSpaceWarningException extends IOException {
 	
 	private FreeDiskSpaceWarningException(String message) {

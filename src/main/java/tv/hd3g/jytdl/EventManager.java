@@ -24,10 +24,9 @@ import java.net.URL;
 import java.util.Arrays;
 import java.util.concurrent.ConcurrentHashMap;
 
-import javax.xml.bind.JAXBException;
-
 import org.apache.commons.lang.SystemUtils;
-import org.apache.log4j.Logger;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 import hd3gtv.tools.ExecBinaryPath;
 import hd3gtv.tools.Execprocess;
@@ -39,7 +38,7 @@ public class EventManager {
 		System.setProperty("javax.xml.bind.JAXBContextFactory", "org.eclipse.persistence.jaxb.JAXBContextFactory");
 	}
 	
-	private static Logger log = Logger.getLogger(EventManager.class);
+	private static final Logger log = LogManager.getLogger();
 	
 	// private final ExecutorService order_executor;
 	// private final ExecutorService process_executor;
@@ -49,7 +48,7 @@ public class EventManager {
 	private final File out_directory;
 	private boolean only_audio;
 	
-	public EventManager(ExecBinaryPath ebp, File out_directory) throws JAXBException {
+	public EventManager(ExecBinaryPath ebp, File out_directory) {
 		this.ebp = ebp;
 		if (ebp == null) {
 			throw new NullPointerException("\"ebp\" can't to be null");
@@ -124,35 +123,6 @@ public class EventManager {
 				}
 			}
 		}
-		
-		/*void cancel() {
-			if (cf_yt_wrapper.isDone() == false) {
-				log.info("Remove tasks for " + order_file);
-				cf_yt_wrapper.cancel(false);
-				cf_yt_wrapper.completeExceptionally(new InterruptedException("Canceled task"));
-			} else {
-				try {
-					CompletableFuture<?> p_chain = cf_yt_wrapper.get().getProcess_chain();
-					
-					if (p_chain.isDone() == false) {
-						log.info("Remove tasks for " + order_file);
-						p_chain.cancel(false);
-						p_chain.completeExceptionally(new InterruptedException("Canceled task"));
-					}
-				} catch (InterruptedException | ExecutionException e) {
-					log.warn("Can't get task", e);
-				}
-			}
-		}*/
-		
 	}
-	
-	/*void waitToClose() {
-		order_executor.shutdown();
-		try {
-			order_executor.awaitTermination(10, TimeUnit.SECONDS);
-		} catch (InterruptedException e) {
-		}
-	}*/
 	
 }

@@ -18,6 +18,7 @@ package hd3gtv.tools;
 
 import java.io.IOException;
 
+@Deprecated
 public class ExecprocessBadExecutionException extends IOException {
 	
 	private static final long serialVersionUID = -8807563945004074931L;

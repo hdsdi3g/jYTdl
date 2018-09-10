@@ -32,7 +32,8 @@ import java.util.stream.Collectors;
 
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.FilenameUtils;
-import org.apache.log4j.Logger;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
@@ -46,12 +47,12 @@ import tv.hd3g.jytdl.YoutubeVideoMetadata.Format;
 
 public class YoutubedlWrapper {
 	
+	private static final Logger log = LogManager.getLogger();
+	
 	/**
 	 * Transform accents to non accented (ascii) version.
 	 */
 	public static final Pattern PATTERN_Combining_Diacritical_Marks = Pattern.compile("\\p{InCombiningDiacriticalMarks}+");
-	
-	private static Logger log = Logger.getLogger(YoutubedlWrapper.class);
 	
 	static void doChecks(ExecBinaryPath eb_path) throws IOException {
 		ExecprocessGettext exec = new ExecprocessGettext(eb_path.get("youtube-dl"), Arrays.asList("--version"), eb_path);

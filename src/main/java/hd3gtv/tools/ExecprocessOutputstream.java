@@ -19,6 +19,7 @@ package hd3gtv.tools;
 import java.io.IOException;
 import java.io.OutputStream;
 
+@Deprecated
 public interface ExecprocessOutputstream {
 	
 	public void onStartProcess(OutputStream outputstream) throws IOException;

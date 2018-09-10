@@ -24,6 +24,7 @@ import java.util.List;
  * @author hdsdi3g
  * @version 1.1 Add OutputStreamHandler
  */
+@Deprecated
 public class ExecprocessGettext {
 	
 	private Execprocess runprocess;
@@ -114,17 +115,13 @@ public class ExecprocessGettext {
 			runprocess.start();
 			
 			if (stoppable == null) {
-				stoppable = new StoppableProcessing() {
-					public boolean isWantToStopCurrentProcessing() {
-						return false;
-					}
-				};
+				stoppable = () -> false;
 			}
 			
 			if (maxexectime > 0) {
 				/** sync */
 				long maxexectime_ms = maxexectime * 1000;
-				while ((runprocess.isAlive()) | (runprocess.getUptime() < 0)) {
+				while (runprocess.isAlive() | runprocess.getUptime() < 0) {
 					if (stoppable.isWantToStopCurrentProcessing()) {
 						runprocess.kill();
 					}
@@ -143,7 +140,7 @@ public class ExecprocessGettext {
 					Thread.sleep(10);
 				}
 			}
-			if ((runprocess.getExitvalue() != 0) && exitcodemusttobe0) {
+			if (runprocess.getExitvalue() != 0 && exitcodemusttobe0) {
 				throw new ExecprocessBadExecutionException(runprocess.getName(), runprocess.getCommandline(), runprocess.getExitvalue());
 			}
 			if (lasterror != null) {

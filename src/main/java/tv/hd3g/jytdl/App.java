@@ -12,13 +12,14 @@ import java.nio.file.WatchService;
 
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.FilenameUtils;
-import org.apache.log4j.Logger;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 import hd3gtv.tools.ExecBinaryPath;
 
 public class App {
 	
-	public final static Logger log = Logger.getLogger(App.class);
+	private static final Logger log = LogManager.getLogger();
 	
 	public static void main(String[] args) throws Exception {
 		/**

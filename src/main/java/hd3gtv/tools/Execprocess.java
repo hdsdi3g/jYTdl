@@ -33,6 +33,7 @@ import java.util.Locale;
  * @version 1.01 set public constructor
  *          1.1 Add OutputStreamHandler
  */
+@Deprecated
 public class Execprocess extends Thread {
 	
 	public static final int STATE_READY = -1;
@@ -62,7 +63,7 @@ public class Execprocess extends Thread {
 	private ExecBinaryPath exec_binary_path;
 	
 	public Execprocess(File execname, List<String> param, ExecprocessEvent events) {
-		processinfo = new ArrayList<String>();
+		processinfo = new ArrayList<>();
 		processinfo.add(execname.getPath());
 		if (param != null) {
 			processinfo.addAll(param);
@@ -263,7 +264,7 @@ public class Execprocess extends Thread {
 				BufferedReader reader = new BufferedReader(new InputStreamReader(stream));
 				try {
 					String line = "";
-					while (((line = reader.readLine()) != null)) {
+					while ((line = reader.readLine()) != null) {
 						if (stderr) {
 							runner.stderr(line);
 						} else {
