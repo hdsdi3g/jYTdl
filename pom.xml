@@ -59,14 +59,11 @@
 	    <artifactId>eclipselink</artifactId>
 	    <version>2.7.0</version>
 	</dependency>
-
-<!-- 
 	<dependency>
-		<groupId>tv.hd3g</groupId>
-		<artifactId>fflauncher</artifactId>
+	    <groupId>tv.hd3g</groupId>
+	    <artifactId>fflauncher</artifactId>
 	    <version>0.1</version>
 	</dependency>
- -->
   </dependencies>
 
 	<organization>
@@ -108,6 +105,25 @@
 				<artifactId>maven-deploy-plugin</artifactId>
 				<version>2.8.2</version>
 			</plugin>
+		      <plugin>
+			<!-- http://www.mojohaus.org/appassembler/appassembler-maven-plugin/usage-program.html -->
+		        <groupId>org.codehaus.mojo</groupId>
+		        <artifactId>appassembler-maven-plugin</artifactId>
+		        <version>1.10</version>
+		        <configuration>
+			  <configurationDirectory>conf</configurationDirectory>
+			  <copyConfigurationDirectory>true</copyConfigurationDirectory>
+			  <includeConfigurationDirectoryInClasspath>true</includeConfigurationDirectoryInClasspath>
+			  <!-- extraJvmArguments>-Xms128m</extraJvmArguments -->
+			  <!-- licenseHeaderFile>${basedir}/license-header.txt</licenseHeaderFile -->
+		          <programs>
+		            <program>
+		              <mainClass>tv.hd3g.jytdl.App</mainClass>
+		              <id>jytdl</id>
+		            </program>
+		          </programs>
+		        </configuration>
+		      </plugin>
 		</plugins>
 		<extensions>
 			<extension>
