@@ -52,6 +52,7 @@ import tv.hd3g.jytdl.YoutubeVideoMetadata.Format;
 public class YoutubedlWrapper {
 	
 	private static final Logger log = LogManager.getLogger();
+	private static final String atomicparsley_execname = "AtomicParsley";// XXX to conf...
 	
 	/**
 	 * Transform accents to non accented (ascii) version.
@@ -69,7 +70,7 @@ public class YoutubedlWrapper {
 		FFmpeg ffmpeg = new FFmpeg(exec_finder, new CommandLineProcessor().createEmptyCommandLine("ffmpeg"));
 		log.info("Use ffmpeg " + ffmpeg.getAbout().getVersion().header_version);
 		
-		exec = new ExecProcessText("atomicparsley", exec_finder).addParameters("-version").setMaxExecutionTime(3, TimeUnit.SECONDS, max_exec_time_scheduler);
+		exec = new ExecProcessText(atomicparsley_execname, exec_finder).addParameters("-version").setMaxExecutionTime(15, TimeUnit.SECONDS, max_exec_time_scheduler);
 		version = exec.run().checkExecution().getStdouterr(false, "; ");
 		log.info("Use " + version);
 	}
@@ -347,7 +348,7 @@ public class YoutubedlWrapper {
 		/**
 		 * Add mp4 tags
 		 */
-		final ExecProcessText ept = new ExecProcessText("atomicparsley", exec_binary_path);
+		final ExecProcessText ept = new ExecProcessText(atomicparsley_execname, exec_binary_path);
 		
 		ept.addParameters(mux_outfile.getAbsolutePath());
 		ept.addParameters("--artist", mtd.uploader);
@@ -361,7 +362,7 @@ public class YoutubedlWrapper {
 		if (thumbnail_image != null) {
 			ept.addParameters("--artwork", thumbnail_image.getAbsolutePath());
 		}
-		ept.addParameters("--encodingTool", "Atomicparsley");
+		ept.addParameters("--encodingTool", atomicparsley_execname);
 		ept.addParameters("--podcastURL", mtd.uploader_url);
 		ept.addParameters("--podcastGUID", mtd.webpage_url);
 		

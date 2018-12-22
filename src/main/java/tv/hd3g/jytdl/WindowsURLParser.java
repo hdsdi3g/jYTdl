@@ -26,12 +26,10 @@ import org.apache.commons.io.FileUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-public class WindowsURLParser {
+public class WindowsURLParser implements FileParser {
 	private static final Logger log = LogManager.getLogger();
 	
-	private final URL url;
-	
-	public WindowsURLParser(File input_file) throws IOException {
+	public URL getURL(File input_file) throws IOException {
 		List<String> lines = FileUtils.readLines(input_file, StandardCharsets.UTF_8);
 		
 		log.debug("Read " + input_file);
@@ -44,10 +42,7 @@ public class WindowsURLParser {
 			throw new IOException("File " + input_file.getName() + " is not an URL file (not valid var URL)");
 		}
 		
-		url = new URL(lines.stream().filter(l -> l.startsWith("URL=")).map(l -> l.substring("URL=".length())).findFirst().get());
+		return new URL(lines.stream().filter(l -> l.startsWith("URL=")).map(l -> l.substring("URL=".length())).findFirst().get());
 	}
 	
-	public URL getURL() {
-		return url;
-	}
 }

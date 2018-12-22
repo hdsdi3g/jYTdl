@@ -17,6 +17,7 @@
 package tv.hd3g.jytdl;
 
 import java.awt.Desktop;
+import java.awt.Desktop.Action;
 import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.FileReader;
@@ -63,14 +64,31 @@ public class EventManager {
 		prefs.load(new FileReader(new File("prefs.properties")));
 	}
 	
+	private final WindowsURLParser windows_url_parser = new WindowsURLParser();
+	
 	public void onFoundURLFile(File new_file) {
 		operations_by_order_file.computeIfAbsent(new_file, f -> {
 			try {
 				log.info("Start scan file " + f);
 				
-				return new Operation(f, new WindowsURLParser(new_file).getURL());
+				return new Operation(f, windows_url_parser.getURL(new_file));
 			} catch (Exception e) {
 				throw new RuntimeException("Can't process url file " + new_file.getName(), e);
+			}
+		});
+		
+	}
+	
+	private final DesktopEntryParser desktop_entry_parser = new DesktopEntryParser();
+	
+	public void onFoundDesktopFile(File new_file) {
+		operations_by_order_file.computeIfAbsent(new_file, f -> {
+			try {
+				log.info("Start scan file " + f);
+				
+				return new Operation(f, desktop_entry_parser.getURL(new_file));
+			} catch (Exception e) {
+				throw new RuntimeException("Can't process desktop file " + new_file.getName(), e);
 			}
 		});
 		
@@ -98,8 +116,12 @@ public class EventManager {
 						}
 					}
 				} else {
-					if (Desktop.getDesktop().moveToTrash(order_file) == false) {
-						log.warn("Can't move to trash " + order_file.getAbsolutePath());
+					if (Desktop.getDesktop().isSupported(Action.MOVE_TO_TRASH)) {
+						if (Desktop.getDesktop().moveToTrash(order_file) == false) {
+							log.warn("Can't move to trash " + order_file.getAbsolutePath());
+						}
+					} else {
+						log.warn("Move-to-trash is not supported here. File to delete: " + order_file.getAbsolutePath());
 					}
 				}
 			} else {

@@ -54,10 +54,12 @@ public class App {
 		
 		EventManager event_manager = new EventManager(ex_finder, new File(System.getProperty("out_dir", System.getProperty("user.home") + File.separator + "Downloads")));
 		
-		FileUtils.iterateFiles(scan_dir, new String[] { "url", "URL" }, false).forEachRemaining(f -> {
+		FileUtils.iterateFiles(scan_dir, new String[] { "url", "URL", "desktop" }, false).forEachRemaining(f -> {
 			String ext = FilenameUtils.getExtension(f.getPath());
 			if (ext.equalsIgnoreCase("url")) {
 				event_manager.onFoundURLFile(f.getAbsoluteFile());
+			} else if (ext.equalsIgnoreCase("desktop")) {
+				event_manager.onFoundDesktopFile(f.getAbsoluteFile());
 			}
 		});
 		
@@ -80,8 +82,9 @@ public class App {
 				if (kind == StandardWatchEventKinds.ENTRY_CREATE) {
 					if (ext.equalsIgnoreCase("url")) {
 						event_manager.onFoundURLFile(event_from_file.getAbsoluteFile());
+					} else if (ext.equalsIgnoreCase("desktop")) {
+						event_manager.onFoundDesktopFile(event_from_file.getAbsoluteFile());
 					}
-					/*} else if (kind == StandardWatchEventKinds.ENTRY_DELETE) {*/
 				} else if (kind == StandardWatchEventKinds.ENTRY_MODIFY) {
 					if (event_from_file.exists() == false) {
 						continue;
@@ -89,6 +92,8 @@ public class App {
 					
 					if (ext.equalsIgnoreCase("url")) {
 						event_manager.onFoundURLFile(event_from_file.getAbsoluteFile());
+					} else if (ext.equalsIgnoreCase("desktop")) {
+						event_manager.onFoundDesktopFile(event_from_file.getAbsoluteFile());
 					}
 				}
 			}
