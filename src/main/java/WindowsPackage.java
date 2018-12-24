@@ -25,7 +25,6 @@ import java.util.stream.Collectors;
 public class WindowsPackage {// TODO remove from here
 	
 	// TODO update ini file + create external ini + bake icon
-	// TODO create zip if it can get ext. exec.
 	
 	static final String NAME = "jYtdl";
 	static final String BASE_JAR_NAME = "jytdl"; // TODO replace by pom parsing...

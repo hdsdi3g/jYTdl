@@ -76,17 +76,11 @@ public class YoutubedlWrapper {
 	}
 	
 	private final ExecutableFinder exec_binary_path;
-	
-	private final String youtube_id;
-	private final YoutubeVideoMetadata mtd;
 	private final File out_directory;
 	private final ExecutorService message_out_executor;
 	private final Properties prefs;
 	
-	public YoutubedlWrapper(URL source_url, ExecutableFinder eb_path, File out_directory, Properties prefs) {
-		if (source_url == null) {
-			throw new NullPointerException("\"source\" can't to be null");
-		}
+	public YoutubedlWrapper(ExecutableFinder eb_path, File out_directory, Properties prefs) {
 		exec_binary_path = eb_path;
 		if (eb_path == null) {
 			throw new NullPointerException("\"eb_path\" can't to be null");
@@ -107,37 +101,6 @@ public class YoutubedlWrapper {
 		}
 		
 		message_out_executor = Executors.newFixedThreadPool(1);
-		
-		log.info("Prepare download for " + source_url);
-		
-		try {
-			youtube_id = youtubedlExec("--get-id", source_url.toString());
-			log.debug("Id is " + youtube_id);
-			
-			/*List<String> format_list = Arrays.asList(youtubedlExec("--list-formats", source_url.toString()).split("\\r?\\n"));
-			format_list.removeIf(t -> {
-				
-				 * Header starts like:
-				 * [youtube] eVeHV3cnnbI: Downloading webpage
-				 * [youtube] eVeHV3cnnbI: Downloading video info webpage
-				 * [youtube] eVeHV3cnnbI: Extracting video information
-				 * [info] Available formats for eVeHV3cnnbI:
-				 * format code extension resolution note
-				 * ---
-				 
-				return t.contains(youtube_id) | t.startsWith("format");
-			});
-			format_list.forEach(t -> System.out.println(t));
-			*/
-			
-			String asset_metadatas_json = youtubedlExec("--dump-json", source_url.toString());
-			Gson g = new GsonBuilder().setPrettyPrinting().create();
-			
-			mtd = g.fromJson(asset_metadatas_json, YoutubeVideoMetadata.class);
-			
-		} catch (IOException e) {
-			throw new RuntimeException("Youtubedl has some problems", e);
-		}
 	}
 	
 	private void youtubedlExec(InteractiveExecProcessHandler interactive_handler, File working_dir, String... user_params) throws IOException {
@@ -189,7 +152,36 @@ public class YoutubedlWrapper {
 	/**
 	 * @return this
 	 */
-	YoutubedlWrapper download() throws IOException, InterruptedException {
+	YoutubedlWrapper download(URL source_url) throws IOException, InterruptedException {
+		if (source_url == null) {
+			throw new NullPointerException("\"source\" can't to be null");
+		}
+		log.info("Prepare download for " + source_url);
+		
+		String youtube_id = youtubedlExec("--get-id", source_url.toString());
+		log.debug("Id is " + youtube_id);
+		
+		/*List<String> format_list = Arrays.asList(youtubedlExec("--list-formats", source_url.toString()).split("\\r?\\n"));
+		format_list.removeIf(t -> {
+			
+			 * Header starts like:
+			 * [youtube] eVeHV3cnnbI: Downloading webpage
+			 * [youtube] eVeHV3cnnbI: Downloading video info webpage
+			 * [youtube] eVeHV3cnnbI: Extracting video information
+			 * [info] Available formats for eVeHV3cnnbI:
+			 * format code extension resolution note
+			 * ---
+			 
+			return t.contains(youtube_id) | t.startsWith("format");
+		});
+		format_list.forEach(t -> System.out.println(t));
+		*/
+		
+		String asset_metadatas_json = youtubedlExec("--dump-json", source_url.toString());
+		Gson g = new GsonBuilder().setPrettyPrinting().create();
+		
+		YoutubeVideoMetadata mtd = g.fromJson(asset_metadatas_json, YoutubeVideoMetadata.class);
+		
 		String normalized_title = removeFilenameForbiddenChars(PATTERN_Combining_Diacritical_Marks.matcher(Normalizer.normalize(mtd.fulltitle, Normalizer.Form.NFD)).replaceAll("").trim());
 		String normalized_uploader = removeFilenameForbiddenChars(PATTERN_Combining_Diacritical_Marks.matcher(Normalizer.normalize(mtd.uploader, Normalizer.Form.NFD)).replaceAll("").trim());
 		
@@ -226,7 +218,7 @@ public class YoutubedlWrapper {
 				return this;
 			}
 			
-			simpleYtDownload(output_file, to_download);
+			simpleYtDownload(output_file, to_download, mtd);
 			
 			boolean modified = output_file.setLastModified(System.currentTimeMillis());
 			if (modified == false) {
@@ -253,13 +245,13 @@ public class YoutubedlWrapper {
 			log.info("Download " + mtd + "; " + YoutubeVideoMetadata.computeTotalSizeToDownload(a_format, v_format));
 			
 			v_outfile = new File(temp_dir.getAbsolutePath() + File.separator + "v-" + v_format.format_id + "." + v_format.ext);
-			simpleYtDownload(v_outfile, v_format);
+			simpleYtDownload(v_outfile, v_format, mtd);
 		} else {
 			log.info("Download audio only " + mtd + "; " + YoutubeVideoMetadata.readableFileSize(a_format.filesize) + "ytes");
 		}
 		
 		File a_outfile = new File(temp_dir.getAbsolutePath() + File.separator + "a-" + a_format.format_id + "." + a_format.ext);
-		simpleYtDownload(a_outfile, a_format);
+		simpleYtDownload(a_outfile, a_format, mtd);
 		
 		String ext = System.getProperty("outextension", "mp4");
 		if (only_audio) {
@@ -432,7 +424,7 @@ public class YoutubedlWrapper {
 		return this;
 	}
 	
-	private void simpleYtDownload(File output_file, Format format) throws IOException {
+	private void simpleYtDownload(File output_file, Format format, YoutubeVideoMetadata mtd) throws IOException {
 		log.info("Download " + mtd + " download format: \"" + format + "\" to \"" + output_file.getName() + "\"");
 		
 		youtubedlExec((source, line, is_std_err) -> {

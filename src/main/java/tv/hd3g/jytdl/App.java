@@ -56,15 +56,12 @@ public class App {
 		
 		FileUtils.iterateFiles(scan_dir, new String[] { "url", "URL", "desktop" }, false).forEachRemaining(f -> {
 			String ext = FilenameUtils.getExtension(f.getPath());
-			if (ext.equalsIgnoreCase("url")) {
-				event_manager.onFoundURLFile(f.getAbsoluteFile());
-			} else if (ext.equalsIgnoreCase("desktop")) {
-				event_manager.onFoundDesktopFile(f.getAbsoluteFile());
+			if (ext.equalsIgnoreCase("url") | ext.equalsIgnoreCase("desktop")) {
+				event_manager.onFoundFile(f.getAbsoluteFile());
 			}
 		});
 		
 		while (true) {
-			
 			WatchKey key = watcher.take();
 			
 			for (WatchEvent<?> event : key.pollEvents()) {
@@ -79,21 +76,23 @@ public class App {
 				File event_from_file = scan_dir.toPath().resolve(filename).toFile();
 				String ext = FilenameUtils.getExtension(event_from_file.getPath());
 				
-				if (kind == StandardWatchEventKinds.ENTRY_CREATE) {
-					if (ext.equalsIgnoreCase("url")) {
-						event_manager.onFoundURLFile(event_from_file.getAbsoluteFile());
-					} else if (ext.equalsIgnoreCase("desktop")) {
-						event_manager.onFoundDesktopFile(event_from_file.getAbsoluteFile());
-					}
-				} else if (kind == StandardWatchEventKinds.ENTRY_MODIFY) {
+				if (kind == StandardWatchEventKinds.ENTRY_CREATE | kind == StandardWatchEventKinds.ENTRY_MODIFY) {
 					if (event_from_file.exists() == false) {
+						log.trace("Can't process non-exists file, like {}", () -> event_from_file.getPath());
+						continue;
+					} else if (event_from_file.isDirectory()) {
+						log.trace("Can't process directories, like {}", () -> event_from_file.getPath());
+						continue;
+					} else if (event_from_file.canRead() == false) {
+						log.trace("Can't read file {}", () -> event_from_file.getPath());
+						continue;
+					} else if (event_from_file.length() == 0) {
+						log.trace("Can't process empty file {}", () -> event_from_file.getPath());
 						continue;
 					}
 					
-					if (ext.equalsIgnoreCase("url")) {
-						event_manager.onFoundURLFile(event_from_file.getAbsoluteFile());
-					} else if (ext.equalsIgnoreCase("desktop")) {
-						event_manager.onFoundDesktopFile(event_from_file.getAbsoluteFile());
+					if (ext.equalsIgnoreCase("url") | ext.equalsIgnoreCase("desktop")) {
+						event_manager.onFoundFile(event_from_file.getAbsoluteFile());
 					}
 				}
 			}

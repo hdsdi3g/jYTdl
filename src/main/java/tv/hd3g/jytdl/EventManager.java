@@ -39,15 +39,15 @@ public class EventManager {
 	
 	private final ConcurrentHashMap<File, Operation> operations_by_order_file;
 	private final ExecutableFinder ebp;
-	private final File out_directory;
 	private final Properties prefs;
+	private final YoutubedlWrapper youtube_dl_wrapper;
 	
 	public EventManager(ExecutableFinder ebp, File out_directory) throws IOException {
 		this.ebp = ebp;
 		if (ebp == null) {
 			throw new NullPointerException("\"ebp\" can't to be null");
 		}
-		this.out_directory = out_directory;
+		// this.out_directory = out_directory;
 		if (out_directory == null) {
 			throw new NullPointerException("\"out_directory\" can't to be null");
 		} else if (out_directory.exists() == false) {
@@ -62,33 +62,20 @@ public class EventManager {
 		
 		prefs = new Properties();
 		prefs.load(new FileReader(new File("prefs.properties")));
+		
+		youtube_dl_wrapper = new YoutubedlWrapper(ebp, out_directory, prefs);
 	}
 	
-	private final WindowsURLParser windows_url_parser = new WindowsURLParser();
+	private final FileParser file_parser = new FileParser();
 	
-	public void onFoundURLFile(File new_file) {
+	public void onFoundFile(File new_file) {
 		operations_by_order_file.computeIfAbsent(new_file, f -> {
 			try {
 				log.info("Start scan file " + f);
 				
-				return new Operation(f, windows_url_parser.getURL(new_file));
+				return new Operation(f, file_parser.getURL(new_file));
 			} catch (Exception e) {
 				throw new RuntimeException("Can't process url file " + new_file.getName(), e);
-			}
-		});
-		
-	}
-	
-	private final DesktopEntryParser desktop_entry_parser = new DesktopEntryParser();
-	
-	public void onFoundDesktopFile(File new_file) {
-		operations_by_order_file.computeIfAbsent(new_file, f -> {
-			try {
-				log.info("Start scan file " + f);
-				
-				return new Operation(f, desktop_entry_parser.getURL(new_file));
-			} catch (Exception e) {
-				throw new RuntimeException("Can't process desktop file " + new_file.getName(), e);
 			}
 		});
 		
@@ -100,34 +87,45 @@ public class EventManager {
 			if (order_file == null) {
 				throw new NullPointerException("\"order_file\" can't to be null");
 			}
-			new YoutubedlWrapper(target, ebp, out_directory, prefs).download();
+			youtube_dl_wrapper.download(target);
+			
+			if (SystemUtils.IS_OS_WINDOWS) {
+				try {
+					log.debug("Use recycle to delete file " + order_file.getAbsolutePath());
+					ExecProcessText ept = new ExecProcessText("recycle", ebp);
+					ept.addParameters("-f", order_file.getAbsolutePath());
+					ept.run().checkExecution();
+					return;
+				} catch (FileNotFoundException e) {
+					log.warn("Can't found recycle.exe in current PATH");
+				}
+			}
 			
 			if (Desktop.isDesktopSupported()) {
-				if (SystemUtils.IS_OS_WINDOWS) {
-					try {
-						ExecProcessText ept = new ExecProcessText("recycle", ebp);
-						ept.addParameters("-f", order_file.getAbsolutePath());
-						ept.run().checkExecution();
-					} catch (FileNotFoundException e) {
-						log.warn("Can't found recycle.exe in current PATH");
-						
-						if (order_file.delete() == false) {
-							log.warn("Can't remove " + order_file.getAbsolutePath());
-						}
-					}
-				} else {
-					if (Desktop.getDesktop().isSupported(Action.MOVE_TO_TRASH)) {
-						if (Desktop.getDesktop().moveToTrash(order_file) == false) {
-							log.warn("Can't move to trash " + order_file.getAbsolutePath());
-						}
+				if (Desktop.getDesktop().isSupported(Action.MOVE_TO_TRASH)) {
+					log.debug("Use Java Desktop.moveToTrash to delete file " + order_file.getAbsolutePath());
+					if (Desktop.getDesktop().moveToTrash(order_file)) {
+						return;
 					} else {
-						log.warn("Move-to-trash is not supported here. File to delete: " + order_file.getAbsolutePath());
+						log.warn("Can't move to trash " + order_file.getAbsolutePath());
 					}
 				}
-			} else {
-				if (order_file.delete() == false) {
-					log.warn("Can't remove " + order_file.getAbsolutePath());
-				}
+			}
+			
+			try {
+				/**
+				 * KDE utility
+				 */
+				ExecProcessText ept = new ExecProcessText("kioclient", ebp);
+				ept.addParameters("move", order_file.getAbsolutePath(), "trash:/");
+				log.debug("Use KDE kioclient to delete file " + order_file.getAbsolutePath());
+				ept.run().checkExecution();
+				return;
+			} catch (FileNotFoundException e) {
+			}
+			
+			if (order_file.delete() == false) {
+				log.warn("Can't remove " + order_file.getAbsolutePath());
 			}
 		}
 	}
