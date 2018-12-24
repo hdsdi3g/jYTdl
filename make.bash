@@ -2,5 +2,5 @@
 
 mvn package appassembler:assemble
 
-ln -s $(realpath target/appassembler/bin/jytdl) .
+ln -s $(realpath target/appassembler/bin/jytdl) exec
 
