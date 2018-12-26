@@ -20,8 +20,10 @@ import java.io.File;
 import java.io.IOException;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
+import java.util.function.Consumer;
 import java.util.function.Function;
 
 import org.apache.commons.io.FileUtils;
@@ -33,10 +35,11 @@ public class FileParser {
 	
 	private static final Logger log = LogManager.getLogger();
 	
-	private final HashMap<String, Function<File, URL>> map_file_parser_by_file_extension;
+	public static final String URL_EXT = "url";
+	public static final String DESKTOP_EXT = "desktop";
+	public static final String[] ALL_MANAGED_EXTENSIONS = new String[] { URL_EXT, DESKTOP_EXT, URL_EXT.toUpperCase(), DESKTOP_EXT };
 	
-	public final String URL_EXT = "url";
-	public final String DESKTOP_EXT = "desktop";
+	private final HashMap<String, Function<File, URL>> map_file_parser_by_file_extension;
 	
 	public FileParser() {
 		map_file_parser_by_file_extension = new HashMap<>();
@@ -56,10 +59,10 @@ public class FileParser {
 		});
 	}
 	
-	public URL getURL(File file) {
+	public URL getURL(File file) throws IOException {
 		Function<File, URL> parser = map_file_parser_by_file_extension.get(FilenameUtils.getExtension(file.getName()).toLowerCase());
 		if (parser == null) {
-			throw new RuntimeException("File extension for  " + file.getPath() + " is not managed");
+			throw new IOException("File extension for  " + file.getPath() + " is not managed");
 		}
 		return parser.apply(file);
 	}
@@ -68,8 +71,6 @@ public class FileParser {
 		List<String> lines = FileUtils.readLines(input_file, StandardCharsets.UTF_8);
 		
 		log.debug("Read " + input_file);
-		
-		System.out.println(lines); // XXX
 		
 		if (lines.size() < 2) {
 			throw new IOException("File " + input_file.getName() + " is not an Freedesktop file (not enough lines)");
@@ -96,6 +97,16 @@ public class FileParser {
 		}
 		
 		return new URL(lines.stream().filter(l -> l.startsWith("URL=")).map(l -> l.substring("URL=".length())).findFirst().get());
+	}
+	
+	Consumer<File> validateExtension(Consumer<File> onValidation) {
+		return f -> {
+			String ext = FilenameUtils.getExtension(f.getPath());
+			
+			if (Arrays.stream(ALL_MANAGED_EXTENSIONS).anyMatch(_ext -> _ext.equalsIgnoreCase(ext))) {
+				onValidation.accept(f.getAbsoluteFile());
+			}
+		};
 	}
 	
 }

@@ -91,70 +91,9 @@ class YoutubeVideoMetadata {
 	 */
 	String extractor;
 	
-	ArrayList<Format> formats;
+	ArrayList<YoutubeVideoMetadataFormat> formats;
 	
-	/**
-	 * Ignore http_headers, downloader_options (http_chunk_size), container, format_note, url
-	 */
-	static class Format {
-		
-		/**
-		 * Like "249 - audio only (DASH audio)", "140 - audio only (DASH audio)", "248 - 1920x1080 (1080p)"
-		 */
-		String format;
-		
-		/**
-		 * Like "vp9", "avc1.640028", "none"
-		 */
-		String vcodec;
-		
-		/**
-		 * Like "opus", "mp4a.40.2", "none"
-		 */
-		String acodec;
-		
-		/**
-		 * In kbps
-		 * like 56.559, 127.907, 1729.513
-		 */
-		float tbr;
-		
-		/**
-		 * Like "webm", "m4a"
-		 */
-		String ext;
-		
-		/**
-		 * 171, 140, 248
-		 */
-		String format_id;
-		
-		/**
-		 * In bytes
-		 */
-		long filesize;
-		
-		/**
-		 * Like 1080
-		 */
-		int height;
-		
-		/**
-		 * Like 1920
-		 */
-		int width;
-		
-		/**
-		 * Like 24
-		 */
-		int fps;
-		
-		public String toString() {
-			return format + ", " + tbr + " kbps (" + filesize + " bytes)";
-		}
-	}
-	
-	Stream<Format> getAllAudioOnlyStreams() {
+	Stream<YoutubeVideoMetadataFormat> getAllAudioOnlyStreams() {
 		return formats.stream().filter(f -> {
 			if (f.acodec == null) {
 				return false;
@@ -167,7 +106,7 @@ class YoutubeVideoMetadata {
 		});
 	}
 	
-	Stream<Format> getAllVideoOnlyStreams() {
+	Stream<YoutubeVideoMetadataFormat> getAllVideoOnlyStreams() {
 		return formats.stream().filter(f -> {
 			if (f.vcodec == null) {
 				return false;
@@ -180,7 +119,7 @@ class YoutubeVideoMetadata {
 		});
 	}
 	
-	static Stream<Format> keepOnlyThisCodec(Stream<Format> a_v_formats, String base_codec_name) {
+	static Stream<YoutubeVideoMetadataFormat> keepOnlyThisCodec(Stream<YoutubeVideoMetadataFormat> a_v_formats, String base_codec_name) {
 		return a_v_formats.filter(f -> {
 			if (f.acodec != null) {
 				if (f.acodec.equalsIgnoreCase("none") == false) {
@@ -199,38 +138,40 @@ class YoutubeVideoMetadata {
 	/**
 	 * @return bigger to smaller
 	 */
-	static Stream<Format> orderByVideoResolution(Stream<Format> video_formats) {
+	static Stream<YoutubeVideoMetadataFormat> orderByVideoResolution(Stream<YoutubeVideoMetadataFormat> video_formats) {
 		return video_formats.filter(f -> {
 			if (f.vcodec == null) {
 				return false;
 			}
 			return f.vcodec.equalsIgnoreCase("none") == false;
 		}).sorted((l, r) -> {
-			return (r.height * r.width) - (l.height * l.width);
+			return r.height * r.width - l.height * l.width;
 		});
 	}
 	
 	/**
 	 * @return bigger to smaller
 	 */
-	static Stream<Format> orderByBitrate(Stream<Format> formats) {
+	static Stream<YoutubeVideoMetadataFormat> orderByBitrate(Stream<YoutubeVideoMetadataFormat> formats) {
 		return formats.sorted((l, r) -> {
 			return Math.round(r.tbr - l.tbr);
 		});
 	}
 	
 	public static String readableFileSize(long size) {
-		if (size <= 0) return "0";
+		if (size <= 0) {
+			return "0";
+		}
 		final String[] units = new String[] { "B", "kB", "MB", "GB", "TB" };
 		int digitGroups = (int) (Math.log10(size) / Math.log10(1024));
 		return new DecimalFormat("#,##0.#").format(size / Math.pow(1024, digitGroups)) + " " + units[digitGroups];
 	}
 	
-	static String computeTotalSizeToDownload(Format f1, Format f2) {
+	static String computeTotalSizeToDownload(YoutubeVideoMetadataFormat f1, YoutubeVideoMetadataFormat f2) {
 		return readableFileSize(f1.filesize + f2.filesize) + "ytes";
 	}
 	
-	static Stream<Format> allAudioVideoMux(Stream<Format> formats) {
+	static Stream<YoutubeVideoMetadataFormat> allAudioVideoMux(Stream<YoutubeVideoMetadataFormat> formats) {
 		return formats.filter(f -> {
 			if (f.acodec == null | f.vcodec == null) {
 				return false;

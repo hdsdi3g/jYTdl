@@ -52,14 +52,15 @@ public class App {
 		WatchService watcher = FileSystems.getDefault().newWatchService();
 		scan_dir.toPath().register(watcher, StandardWatchEventKinds.ENTRY_CREATE, StandardWatchEventKinds.ENTRY_DELETE, StandardWatchEventKinds.ENTRY_MODIFY, StandardWatchEventKinds.OVERFLOW);
 		
-		EventManager event_manager = new EventManager(ex_finder, new File(System.getProperty("out_dir", System.getProperty("user.home") + File.separator + "Downloads")));
+		FileParser file_parser = new FileParser();
+		EventManager event_manager = new EventManager(ex_finder, file_parser, new File(System.getProperty("out_dir", System.getProperty("user.home") + File.separator + "Downloads")));
 		
-		FileUtils.iterateFiles(scan_dir, new String[] { "url", "URL", "desktop" }, false).forEachRemaining(f -> {
-			String ext = FilenameUtils.getExtension(f.getPath());
-			if (ext.equalsIgnoreCase("url") | ext.equalsIgnoreCase("desktop")) {
-				event_manager.onFoundFile(f.getAbsoluteFile());
-			}
-		});
+		/**
+		 * Process actual files
+		 */
+		FileUtils.iterateFiles(scan_dir, FileParser.ALL_MANAGED_EXTENSIONS, false).forEachRemaining(file_parser.validateExtension(f -> {
+			event_manager.onFoundFile(f.getAbsoluteFile());
+		}));
 		
 		while (true) {
 			WatchKey key = watcher.take();
@@ -93,6 +94,10 @@ public class App {
 					
 					if (ext.equalsIgnoreCase("url") | ext.equalsIgnoreCase("desktop")) {
 						event_manager.onFoundFile(event_from_file.getAbsoluteFile());
+					}
+				} else if (kind == StandardWatchEventKinds.ENTRY_DELETE) {
+					if (event_from_file.exists() == false) {
+						event_manager.afterLostFile(event_from_file.getAbsoluteFile());
 					}
 				}
 			}

@@ -18,11 +18,7 @@ package tv.hd3g.jytdl;
 
 import java.io.File;
 import java.io.IOException;
-import java.net.MalformedURLException;
-import java.net.SocketTimeoutException;
 import java.net.URL;
-import java.net.URLConnection;
-import java.text.Normalizer;
 import java.util.Arrays;
 import java.util.Optional;
 import java.util.Properties;
@@ -30,34 +26,20 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
-import java.util.regex.Pattern;
-import java.util.stream.Collectors;
 
 import org.apache.commons.io.FileUtils;
-import org.apache.commons.io.FilenameUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-
-import com.google.gson.Gson;
-import com.google.gson.GsonBuilder;
 
 import tv.hd3g.execprocess.CommandLineProcessor;
 import tv.hd3g.execprocess.ExecProcessText;
 import tv.hd3g.execprocess.ExecutableFinder;
 import tv.hd3g.execprocess.InteractiveExecProcessHandler;
-import tv.hd3g.fflauncher.FFLogLevel;
 import tv.hd3g.fflauncher.FFmpeg;
-import tv.hd3g.jytdl.YoutubeVideoMetadata.Format;
 
 public class YoutubedlWrapper {
 	
 	private static final Logger log = LogManager.getLogger();
-	private static final String atomicparsley_execname = "AtomicParsley";// XXX to conf...
-	
-	/**
-	 * Transform accents to non accented (ascii) version.
-	 */
-	public static final Pattern PATTERN_Combining_Diacritical_Marks = Pattern.compile("\\p{InCombiningDiacriticalMarks}+");
 	
 	static void doChecks(ExecutableFinder exec_finder) throws IOException {
 		ScheduledExecutorService max_exec_time_scheduler = Executors.newScheduledThreadPool(1);
@@ -70,7 +52,7 @@ public class YoutubedlWrapper {
 		FFmpeg ffmpeg = new FFmpeg(exec_finder, new CommandLineProcessor().createEmptyCommandLine("ffmpeg"));
 		log.info("Use ffmpeg " + ffmpeg.getAbout().getVersion().header_version);
 		
-		exec = new ExecProcessText(atomicparsley_execname, exec_finder).addParameters("-version").setMaxExecutionTime(15, TimeUnit.SECONDS, max_exec_time_scheduler);
+		exec = new ExecProcessText("AtomicParsley", exec_finder).addParameters("-version").setMaxExecutionTime(15, TimeUnit.SECONDS, max_exec_time_scheduler);
 		version = exec.run().checkExecution().getStdouterr(false, "; ");
 		log.info("Use " + version);
 	}
@@ -79,6 +61,9 @@ public class YoutubedlWrapper {
 	private final File out_directory;
 	private final ExecutorService message_out_executor;
 	private final Properties prefs;
+	private final ImageDownload image_download;
+	private final FFmpegMuxer ffmpeg_muxer;
+	private final MP4Tagger mp4tagger;
 	
 	public YoutubedlWrapper(ExecutableFinder eb_path, File out_directory, Properties prefs) {
 		exec_binary_path = eb_path;
@@ -99,8 +84,12 @@ public class YoutubedlWrapper {
 		if (prefs == null) {
 			throw new NullPointerException("\"prefs\" can't to be null");
 		}
+		image_download = new ImageDownload();
 		
 		message_out_executor = Executors.newFixedThreadPool(1);
+		ffmpeg_muxer = new FFmpegMuxer(exec_binary_path, message_out_executor);
+		mp4tagger = new MP4Tagger(exec_binary_path, message_out_executor);
+		
 	}
 	
 	private void youtubedlExec(InteractiveExecProcessHandler interactive_handler, File working_dir, String... user_params) throws IOException {
@@ -141,23 +130,16 @@ public class YoutubedlWrapper {
 		return sb.toString();
 	}
 	
-	public static String removeFilenameForbiddenChars(String txt) {
-		String l1 = txt.replaceAll("<", "[").replaceAll(">", "]").replaceAll(":", "-").replaceAll("/", "-").replaceAll("\\\\", "-").replaceAll("\\|", " ").replaceAll("\\?", "").replaceAll("\\*", " ").replaceAll("\\\"", "”");
-		// Advanced Damage & Decay FX Tutorial! 100% After Effects!
-		l1 = l1.replaceAll("&", "-").replaceAll("%", "");
-		l1 = l1.replaceAll("        ", " ").replaceAll("       ", " ").replaceAll("      ", " ").replaceAll("     ", " ").replaceAll("    ", " ").replaceAll("   ", " ").replaceAll("  ", " ").replaceAll("---", "-").replaceAll("--", "-");
-		return l1;
-	}
-	
-	/**
-	 * @return this
-	 */
-	YoutubedlWrapper download(URL source_url) throws IOException, InterruptedException {
+	DownloadMedia prepareDownload(URL source_url) throws IOException {
 		if (source_url == null) {
 			throw new NullPointerException("\"source\" can't to be null");
 		}
+		
 		log.info("Prepare download for " + source_url);
 		
+		/**
+		 * Test if URL is valid.
+		 */
 		String youtube_id = youtubedlExec("--get-id", source_url.toString());
 		log.debug("Id is " + youtube_id);
 		
@@ -176,255 +158,93 @@ public class YoutubedlWrapper {
 		});
 		format_list.forEach(t -> System.out.println(t));
 		*/
+		return new DownloadMedia(source_url, prefs);
+	}
+	
+	void download(DownloadMedia media) throws IOException, InterruptedException {
+		if (media == null) {
+			throw new NullPointerException("\"media\" can't to be null");
+		}
 		
-		String asset_metadatas_json = youtubedlExec("--dump-json", source_url.toString());
-		Gson g = new GsonBuilder().setPrettyPrinting().create();
+		media.setJsonMetadata(youtubedlExec("--dump-json", media.getSourceURL().toString()));
 		
-		YoutubeVideoMetadata mtd = g.fromJson(asset_metadatas_json, YoutubeVideoMetadata.class);
+		YoutubeVideoMetadataFormat best_aformat = media.getBestAudioStream();
+		YoutubeVideoMetadataFormat best_vformat = media.getBestVideoStream();
 		
-		String normalized_title = removeFilenameForbiddenChars(PATTERN_Combining_Diacritical_Marks.matcher(Normalizer.normalize(mtd.fulltitle, Normalizer.Form.NFD)).replaceAll("").trim());
-		String normalized_uploader = removeFilenameForbiddenChars(PATTERN_Combining_Diacritical_Marks.matcher(Normalizer.normalize(mtd.uploader, Normalizer.Form.NFD)).replaceAll("").trim());
-		
-		String base_out_filename = normalized_title + " ➠ " + normalized_uploader + "  " + mtd.id;
-		
-		Optional<Format> o_best_aformat = YoutubeVideoMetadata.orderByBitrate(YoutubeVideoMetadata.keepOnlyThisCodec(mtd.getAllAudioOnlyStreams(), prefs.getProperty("best_aformat", "mp4a"))).findFirst();
-		
-		Optional<Format> o_best_vformat = YoutubeVideoMetadata.orderByBitrate(YoutubeVideoMetadata.orderByVideoResolution(YoutubeVideoMetadata.keepOnlyThisCodec(mtd.getAllVideoOnlyStreams(), prefs.getProperty("best_vformat", "avc1"))).dropWhile(f -> {
-			return f.width > Integer.parseInt(prefs.getProperty("max_width_res", "1920")) | f.height > Integer.parseInt(prefs.getProperty("max_height_res", "1080"));
-		})).findFirst();
-		
-		boolean only_audio = Boolean.parseBoolean(prefs.getProperty("only_audio", "false"));
-		if (o_best_aformat.isPresent() == false | o_best_vformat.isPresent() == false) {
-			if (only_audio && o_best_aformat.isPresent() == false) {
-				throw new IOException("Can't found best audio codec for " + mtd + " in only-audio mode");
+		if (best_aformat == null | best_vformat == null) {
+			if (media.isOnlyAudio() && best_aformat == null) {
+				throw new IOException("Can't found best audio codec for " + media.getMtd() + " in only-audio mode");
 			}
 			
-			if (o_best_aformat.isPresent()) {
-				log.info("Can't found best video codec for " + mtd);
-			} else if (o_best_vformat.isPresent()) {
-				log.info("Can't found best audio codec for " + mtd);
+			if (best_aformat != null) {
+				log.info("Can't found best video codec for " + media.getMtd());
+			} else if (best_vformat != null) {
+				log.info("Can't found best audio codec for " + media.getMtd());
 			} else {
-				log.info("Can't found best audio and video codec for " + mtd);
+				log.info("Can't found best audio and video codec for " + media.getMtd());
 			}
 			
-			Optional<Format> o_best_avformat = YoutubeVideoMetadata.orderByVideoResolution(YoutubeVideoMetadata.allAudioVideoMux(mtd.formats.stream())).findFirst();
+			Optional<YoutubeVideoMetadataFormat> o_best_avformat = YoutubeVideoMetadata.orderByVideoResolution(YoutubeVideoMetadata.allAudioVideoMux(media.getMtd().formats.stream())).findFirst();
 			
-			Format to_download = o_best_avformat.orElseThrow(() -> new RuntimeException("Can't found valid downloadable format for " + mtd));
+			YoutubeVideoMetadataFormat to_download = o_best_avformat.orElseThrow(() -> new RuntimeException("Can't found valid downloadable format for " + media.getMtd()));
 			
-			File output_file = new File(out_directory.getCanonicalPath() + File.separator + base_out_filename + "." + to_download.ext);
+			File output_file = new File(out_directory.getCanonicalPath() + File.separator + media.getBaseOutFileName() + "." + to_download.ext);
 			
 			if (output_file.exists()) {
 				log.warn("Output file exists: \"" + output_file + "\", ignore download operation");
-				return this;
+				return;
 			}
 			
-			simpleYtDownload(output_file, to_download, mtd);
+			simpleYtDownload(output_file, to_download, media.getMtd());
 			
 			boolean modified = output_file.setLastModified(System.currentTimeMillis());
 			if (modified == false) {
 				log.warn("Can't change file date " + output_file);
 			}
 			
-			return this;
+			return;
 		}
 		
-		File temp_dir = new File(out_directory.getCanonicalPath() + File.separator + mtd.extractor_key + " " + mtd.id + " - " + normalized_title);
+		File temp_dir = new File(out_directory.getCanonicalPath() + File.separator + media.getMtd().extractor_key + " " + media.getMtd().id + " - " + media.getNormalizedTitle());
 		
 		log.debug("Create dest temp dir " + temp_dir);
 		FileUtils.forceMkdir(temp_dir);
 		FileUtils.cleanDirectory(temp_dir);
 		
-		Format a_format = o_best_aformat.get();
-		log.debug("Select best audio format: " + a_format);
-		Format v_format = null;
+		log.debug("Select best audio format: " + best_aformat);
 		
 		File v_outfile = null;
-		if (only_audio == false) {
-			v_format = o_best_vformat.get();
-			log.debug("Select best video format: " + v_format);
-			log.info("Download " + mtd + "; " + YoutubeVideoMetadata.computeTotalSizeToDownload(a_format, v_format));
+		if (media.isOnlyAudio() == false) {
+			log.debug("Select best video format: " + best_vformat);
+			log.info("Download " + media.getMtd() + "; " + YoutubeVideoMetadata.computeTotalSizeToDownload(best_aformat, best_vformat));
 			
-			v_outfile = new File(temp_dir.getAbsolutePath() + File.separator + "v-" + v_format.format_id + "." + v_format.ext);
-			simpleYtDownload(v_outfile, v_format, mtd);
+			v_outfile = new File(temp_dir.getAbsolutePath() + File.separator + "v-" + best_vformat.format_id + "." + best_vformat.ext);
+			simpleYtDownload(v_outfile, best_vformat, media.getMtd());
 		} else {
-			log.info("Download audio only " + mtd + "; " + YoutubeVideoMetadata.readableFileSize(a_format.filesize) + "ytes");
+			log.info("Download audio only " + media.getMtd() + "; " + YoutubeVideoMetadata.readableFileSize(best_aformat.filesize) + "ytes");
 		}
 		
-		File a_outfile = new File(temp_dir.getAbsolutePath() + File.separator + "a-" + a_format.format_id + "." + a_format.ext);
-		simpleYtDownload(a_outfile, a_format, mtd);
+		File a_outfile = new File(temp_dir.getAbsolutePath() + File.separator + "a-" + best_aformat.format_id + "." + best_aformat.ext);
+		simpleYtDownload(a_outfile, best_aformat, media.getMtd());
 		
 		String ext = System.getProperty("outextension", "mp4");
-		if (only_audio) {
+		if (media.isOnlyAudio()) {
 			ext = System.getProperty("outextension-onlyaudio", "aac");
 		}
 		
 		File mux_outfile = new File(temp_dir.getAbsolutePath() + File.separator + "mux." + ext);
-		log.info("Assemble media files " + mtd + " to " + mux_outfile.getName());
 		
-		FFmpeg ffmpeg = new FFmpeg(exec_binary_path, new CommandLineProcessor().createEmptyCommandLine("ffmpeg"));
-		
-		ffmpeg.setHidebanner().setOverwriteOutputFiles().setLogLevel(FFLogLevel.warning, false, false);
-		
-		if (only_audio == false) {
-			ffmpeg.addSimpleInputSource(v_outfile.getAbsolutePath());
-		}
-		ffmpeg.addSimpleInputSource(a_outfile.getAbsolutePath());
-		
-		if (only_audio) {
-			ffmpeg.addAudioCodecName("copy", -1);
-		} else {
-			ffmpeg.addMap(0, 0);
-			ffmpeg.addMap(1, 0);
-			ffmpeg.addVsync(1);
-			ffmpeg.addVideoCodecName("copy", -1);
-			ffmpeg.addAudioCodecName("copy", -1);
-		}
-		ffmpeg.addFastStartMovMp4File();
-		ffmpeg.addSimpleOutputDestination(mux_outfile.getAbsolutePath(), "mp4");
-		
-		ExecProcessText ept_ffmpeg = ffmpeg.createExec();
-		ept_ffmpeg.setInteractiveHandler((source, line, is_std_err) -> {
-			if (is_std_err) {
-				System.err.println("ffmpeg | " + line);
-			} else {
-				System.out.println("ffmpeg | " + line);
-			}
-			return null;
-		}, message_out_executor);
-		
-		ept_ffmpeg.run().checkExecution();
-		
-		File thumbnail_image = null;
-		if (mtd.thumbnail != null) {
-			try {
-				URL thumbnail = new URL(mtd.thumbnail);
-				thumbnail_image = new File(temp_dir.getAbsolutePath() + File.separator + "thumbnail." + FilenameUtils.getExtension(mtd.thumbnail));
-				
-				log.trace("Wait 0.5 sec before try to download");
-				Thread.sleep(500);
-				
-				log.info("Download thumbnail image " + thumbnail + " to " + thumbnail_image.getName());
-				int max_try = 5;
-				for (int pos = 0; pos < max_try; pos++) {
-					try {
-						URLConnection connection = thumbnail.openConnection();
-						connection.addRequestProperty("Referer", mtd.webpage_url.toString());
-						connection.addRequestProperty("User-Agent", "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_10_10) AppleWebKit/543.21 (KHTML, like Gecko) Chrome/65.4.3210.987 Safari/543.21");
-						connection.addRequestProperty("Accept-Language", "fr-FR,fr;q=0.9,en-US;q=0.8,en;q=0.7,de;q=0.6");
-						connection.addRequestProperty("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8");
-						connection.addRequestProperty("Cache-Control", "max-age=0");
-						connection.setConnectTimeout(30000);
-						connection.setReadTimeout(30000);
-						
-						FileUtils.copyInputStreamToFile(connection.getInputStream(), thumbnail_image);
-						break;
-					} catch (SocketTimeoutException ste) {
-						log.warn("Can't thumbnail download image (try " + (pos + 1) + "/" + max_try + ") from URL: " + mtd.thumbnail + "; " + ste.getMessage());
-						if (pos + 1 != max_try) {
-							log.debug("Wait " + pos + " sec for the next try...");
-							Thread.sleep(1000 + pos * 1000);
-						}
-					}
-				}
-				
-				if (thumbnail_image.exists() == false) {
-					thumbnail_image = null;
-				} else if (thumbnail_image.length() == 0) {
-					thumbnail_image = null;
-				}
-			} catch (MalformedURLException mue) {
-				log.warn("Can't thumbnail download image, invalid URL: " + mtd.thumbnail, mue);
-			}
-		}
-		
-		/**
-		 * Add mp4 tags
-		 */
-		final ExecProcessText ept = new ExecProcessText(atomicparsley_execname, exec_binary_path);
-		
-		ept.addParameters(mux_outfile.getAbsolutePath());
-		ept.addParameters("--artist", mtd.uploader);
-		ept.addParameters("--title", mtd.fulltitle);
-		ept.addParameters("--album", mtd.extractor_key);
-		ept.addParameters("--grouping", mtd.extractor_key);
-		ept.addParameters("--comment", mtd.description.substring(0, Math.min(255, mtd.description.length())));
-		ept.addParameters("--description", mtd.description.substring(0, Math.min(255, mtd.description.length())));
-		ept.addParameters("--year", mtd.upload_date.substring(0, 4));
-		ept.addParameters("--compilation", "true");
-		if (thumbnail_image != null) {
-			ept.addParameters("--artwork", thumbnail_image.getAbsolutePath());
-		}
-		ept.addParameters("--encodingTool", atomicparsley_execname);
-		ept.addParameters("--podcastURL", mtd.uploader_url);
-		ept.addParameters("--podcastGUID", mtd.webpage_url);
-		
-		mtd.categories.stream().findFirst().ifPresent(category -> {
-			ept.addParameters("--category", category);
-		});
-		
-		if (mtd.license != null) {
-			if (mtd.license.trim().isEmpty() == false) {
-				ept.addParameters("--copyright", mtd.license);
-			}
-		}
-		
-		if (mtd.age_limit > 13) {
-			ept.addParameters("--advisory", "explicit");
-		}
-		
-		/**
-		 * Available stik settings - case sensitive (number in parens shows the stik value).
-		 * (0) Movie
-		 * (1) Normal
-		 * (2) Audiobook
-		 * (5) Whacked Bookmark
-		 * (6) Music Video
-		 * (9) Short Film
-		 * (10) TV Show
-		 * (11) Booklet
-		 */
-		ept.addParameters("--stik", "Normal");
-		ept.addParameters("--TVNetwork", mtd.extractor_key);
-		ept.addParameters("--TVShowName", mtd.uploader);
-		
-		if (mtd.tags != null) {
-			if (mtd.tags.isEmpty() == false) {
-				ept.addParameters("--keyword", mtd.tags.stream().collect(Collectors.joining(",")));
-			}
-		}
-		
-		File output_file = new File(out_directory.getCanonicalPath() + File.separator + base_out_filename + "." + System.getProperty("outextension", "mp4"));
-		if (only_audio) {
-			output_file = new File(out_directory.getCanonicalPath() + File.separator + base_out_filename + "." + System.getProperty("outextension-onlyaudio", "m4a"));
-		}
-		
-		ept.addParameters("--output", output_file.getAbsolutePath());
-		
-		log.info("Add tags from " + mtd + " to " + output_file.getName());
-		
-		ept.setInteractiveHandler((source, line, is_std_err) -> {
-			if (line.trim().isEmpty()) {
-				return null;
-			}
-			if (is_std_err) {
-				System.err.println("atomicparsley | " + line);
-			} else {
-				if (line.trim().startsWith("Progress:") == false) {
-					System.out.println("atomicparsley | " + line);
-				}
-			}
-			return null;
-		}, message_out_executor);
-		
-		ept.run().checkExecution();
+		ffmpeg_muxer.muxStreams(media, mux_outfile, v_outfile, a_outfile);
+		media.downloadImage(image_download, temp_dir);
+		mp4tagger.addTagsToFile(media, mux_outfile, out_directory);
 		
 		log.debug("Remove " + temp_dir);
 		FileUtils.forceDelete(temp_dir);
 		
-		return this;
+		return;
 	}
 	
-	private void simpleYtDownload(File output_file, Format format, YoutubeVideoMetadata mtd) throws IOException {
+	private void simpleYtDownload(File output_file, YoutubeVideoMetadataFormat format, YoutubeVideoMetadata mtd) throws IOException {
 		log.info("Download " + mtd + " download format: \"" + format + "\" to \"" + output_file.getName() + "\"");
 		
 		youtubedlExec((source, line, is_std_err) -> {
