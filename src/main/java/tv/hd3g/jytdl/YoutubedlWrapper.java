@@ -21,7 +21,6 @@ import java.io.IOException;
 import java.net.URL;
 import java.util.Arrays;
 import java.util.Optional;
-import java.util.Properties;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
@@ -60,17 +59,22 @@ public class YoutubedlWrapper {
 	private final ExecutableFinder exec_binary_path;
 	private final File out_directory;
 	private final ExecutorService message_out_executor;
-	private final Properties prefs;
+	private final Config config;
 	private final ImageDownload image_download;
 	private final FFmpegMuxer ffmpeg_muxer;
 	private final MP4Tagger mp4tagger;
 	
-	public YoutubedlWrapper(ExecutableFinder eb_path, File out_directory, Properties prefs) {
+	public YoutubedlWrapper(ExecutableFinder eb_path, Config config) {
 		exec_binary_path = eb_path;
 		if (eb_path == null) {
 			throw new NullPointerException("\"eb_path\" can't to be null");
 		}
-		this.out_directory = out_directory;
+		this.config = config;
+		if (config == null) {
+			throw new NullPointerException("\"config\" can't to be null");
+		}
+		
+		out_directory = config.getOutDir();
 		if (out_directory == null) {
 			throw new NullPointerException("\"out_directory\" can't to be null");
 		} else if (out_directory.exists() == false) {
@@ -80,15 +84,12 @@ public class YoutubedlWrapper {
 		} else if (out_directory.isDirectory() == false) {
 			throw new RuntimeException("Invalid out_directory: " + out_directory.getPath() + ", is not au directory");
 		}
-		this.prefs = prefs;
-		if (prefs == null) {
-			throw new NullPointerException("\"prefs\" can't to be null");
-		}
+		
 		image_download = new ImageDownload();
 		
 		message_out_executor = Executors.newFixedThreadPool(1);
 		ffmpeg_muxer = new FFmpegMuxer(exec_binary_path, message_out_executor);
-		mp4tagger = new MP4Tagger(exec_binary_path, message_out_executor);
+		mp4tagger = new MP4Tagger(exec_binary_path, config, message_out_executor);
 		
 	}
 	
@@ -158,7 +159,7 @@ public class YoutubedlWrapper {
 		});
 		format_list.forEach(t -> System.out.println(t));
 		*/
-		return new DownloadMedia(source_url, prefs);
+		return new DownloadMedia(source_url, config);
 	}
 	
 	void download(DownloadMedia media) throws IOException, InterruptedException {
@@ -201,47 +202,43 @@ public class YoutubedlWrapper {
 			if (modified == false) {
 				log.warn("Can't change file date " + output_file);
 			}
-			
-			return;
-		}
-		
-		File temp_dir = new File(out_directory.getCanonicalPath() + File.separator + media.getMtd().extractor_key + " " + media.getMtd().id + " - " + media.getNormalizedTitle());
-		
-		log.debug("Create dest temp dir " + temp_dir);
-		FileUtils.forceMkdir(temp_dir);
-		FileUtils.cleanDirectory(temp_dir);
-		
-		log.debug("Select best audio format: " + best_aformat);
-		
-		File v_outfile = null;
-		if (media.isOnlyAudio() == false) {
-			log.debug("Select best video format: " + best_vformat);
-			log.info("Download " + media.getMtd() + "; " + YoutubeVideoMetadata.computeTotalSizeToDownload(best_aformat, best_vformat));
-			
-			v_outfile = new File(temp_dir.getAbsolutePath() + File.separator + "v-" + best_vformat.format_id + "." + best_vformat.ext);
-			simpleYtDownload(v_outfile, best_vformat, media.getMtd());
 		} else {
-			log.info("Download audio only " + media.getMtd() + "; " + YoutubeVideoMetadata.readableFileSize(best_aformat.filesize) + "ytes");
+			File temp_dir = new File(out_directory.getCanonicalPath() + File.separator + media.getMtd().extractor_key + " " + media.getMtd().id + " - " + media.getNormalizedTitle());
+			
+			log.debug("Create dest temp dir " + temp_dir);
+			FileUtils.forceMkdir(temp_dir);
+			FileUtils.cleanDirectory(temp_dir);
+			
+			log.debug("Select best audio format: " + best_aformat);
+			
+			File v_outfile = null;
+			if (media.isOnlyAudio() == false) {
+				log.debug("Select best video format: " + best_vformat);
+				log.info("Download " + media.getMtd() + "; " + YoutubeVideoMetadata.computeTotalSizeToDownload(best_aformat, best_vformat));
+				
+				v_outfile = new File(temp_dir.getAbsolutePath() + File.separator + "v-" + best_vformat.format_id + "." + best_vformat.ext);
+				simpleYtDownload(v_outfile, best_vformat, media.getMtd());
+			} else {
+				log.info("Download audio only " + media.getMtd() + "; " + YoutubeVideoMetadata.readableFileSize(best_aformat.filesize) + "ytes");
+			}
+			
+			File a_outfile = new File(temp_dir.getAbsolutePath() + File.separator + "a-" + best_aformat.format_id + "." + best_aformat.ext);
+			simpleYtDownload(a_outfile, best_aformat, media.getMtd());
+			
+			String ext = config.audiovideo_extension;
+			if (media.isOnlyAudio()) {
+				ext = config.audioonly_extension;
+			}
+			
+			File mux_outfile = new File(temp_dir.getAbsolutePath() + File.separator + "mux." + ext);
+			
+			ffmpeg_muxer.muxStreams(media, mux_outfile, v_outfile, a_outfile);
+			media.downloadImage(image_download, temp_dir);
+			mp4tagger.addTagsToFile(media, mux_outfile, out_directory);
+			
+			log.debug("Remove " + temp_dir);
+			FileUtils.forceDelete(temp_dir);
 		}
-		
-		File a_outfile = new File(temp_dir.getAbsolutePath() + File.separator + "a-" + best_aformat.format_id + "." + best_aformat.ext);
-		simpleYtDownload(a_outfile, best_aformat, media.getMtd());
-		
-		String ext = System.getProperty("outextension", "mp4");
-		if (media.isOnlyAudio()) {
-			ext = System.getProperty("outextension-onlyaudio", "aac");
-		}
-		
-		File mux_outfile = new File(temp_dir.getAbsolutePath() + File.separator + "mux." + ext);
-		
-		ffmpeg_muxer.muxStreams(media, mux_outfile, v_outfile, a_outfile);
-		media.downloadImage(image_download, temp_dir);
-		mp4tagger.addTagsToFile(media, mux_outfile, out_directory);
-		
-		log.debug("Remove " + temp_dir);
-		FileUtils.forceDelete(temp_dir);
-		
-		return;
 	}
 	
 	private void simpleYtDownload(File output_file, YoutubeVideoMetadataFormat format, YoutubeVideoMetadata mtd) throws IOException {

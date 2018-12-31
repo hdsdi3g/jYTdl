@@ -61,6 +61,11 @@
 			<version>2.7.0</version>
 		</dependency>
 		<dependency>
+			<groupId>org.yaml</groupId>
+			<artifactId>snakeyaml</artifactId>
+			<version>1.23</version>
+		</dependency>
+		<dependency>
 			<groupId>tv.hd3g</groupId>
 			<artifactId>fflauncher</artifactId>
 			<version>0.1</version>

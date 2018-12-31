@@ -9,6 +9,7 @@ import java.nio.file.StandardWatchEventKinds;
 import java.nio.file.WatchEvent;
 import java.nio.file.WatchKey;
 import java.nio.file.WatchService;
+import java.util.Arrays;
 
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.FilenameUtils;
@@ -22,6 +23,17 @@ public class App {
 	private static final Logger log = LogManager.getLogger();
 	
 	public static void main(String[] args) throws Exception {
+		
+		File config_file = Arrays.stream(System.getProperty("java.class.path").split(File.pathSeparator)).map(p -> {
+			return new File(p);
+		}).filter(f -> {
+			return f.exists() && f.isDirectory() && f.canRead();
+		}).flatMap(f -> Arrays.stream(f.listFiles((dir, name) -> {
+			return name.equals("config.yml");
+		}))).findFirst().orElseThrow(() -> new FileNotFoundException("Can't found config.yml in classpath"));
+		
+		Config config = Config.loadYml(config_file);
+		
 		/**
 		 * Async test YoutubedlWrapper
 		 */
@@ -40,7 +52,7 @@ public class App {
 		
 		// TODO 4k problem: mp4 don't have 4k, but webm, yes.
 		
-		File scan_dir = new File(System.getProperty("scan_dir", System.getProperty("user.home") + File.separator + "Desktop"));
+		File scan_dir = config.getScanDir();
 		if (scan_dir.exists() == false) {
 			throw new FileNotFoundException("Can't found " + scan_dir + " directory");
 		} else if (scan_dir.canRead() == false) {
@@ -53,7 +65,7 @@ public class App {
 		scan_dir.toPath().register(watcher, StandardWatchEventKinds.ENTRY_CREATE, StandardWatchEventKinds.ENTRY_DELETE, StandardWatchEventKinds.ENTRY_MODIFY, StandardWatchEventKinds.OVERFLOW);
 		
 		FileParser file_parser = new FileParser();
-		EventManager event_manager = new EventManager(ex_finder, file_parser, new File(System.getProperty("out_dir", System.getProperty("user.home") + File.separator + "Downloads")));
+		EventManager event_manager = new EventManager(ex_finder, file_parser, config);
 		
 		/**
 		 * Process actual files

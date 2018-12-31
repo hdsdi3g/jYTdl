@@ -48,6 +48,9 @@ public class FileParser {
 				return parseWindowsURLFile(f);
 			} catch (IOException e) {
 				throw new RuntimeException("Can't manage URL file " + f.getPath(), e);
+			} catch (UnsupportedOperationException e2) {
+				log.info("Link \"{}\" is not a media target.", f.getName());
+				return null;
 			}
 		});
 		map_file_parser_by_file_extension.put(DESKTOP_EXT, f -> {
@@ -55,6 +58,9 @@ public class FileParser {
 				return parseFreeDesktopFile(f);
 			} catch (IOException e) {
 				throw new RuntimeException("Can't manage Freedesktop file " + f.getPath(), e);
+			} catch (UnsupportedOperationException e2) {
+				log.info("Link \"{}\" is not a media target.", f.getName());
+				return null;
 			}
 		});
 	}
@@ -73,11 +79,11 @@ public class FileParser {
 		log.debug("Read " + input_file);
 		
 		if (lines.size() < 2) {
-			throw new IOException("File " + input_file.getName() + " is not an Freedesktop file (not enough lines)");
+			throw new UnsupportedOperationException("File " + input_file.getName() + " is not an Freedesktop file (not enough lines)");
 		} else if (lines.get(0).equals("[Desktop Entry]") == false) {
-			throw new IOException("File " + input_file.getName() + " is not an Freedesktop file (not valid header Desktop Entry)");
+			throw new UnsupportedOperationException("File " + input_file.getName() + " is not an Freedesktop file (not valid header Desktop Entry)");
 		} else if (lines.stream().noneMatch(l -> l.startsWith("URL"))) {
-			throw new IOException("File " + input_file.getName() + " is not an Freedesktop file (not valid var URL)");
+			throw new UnsupportedOperationException("File " + input_file.getName() + " is not an Freedesktop file (not valid var URL)");
 		}
 		
 		return new URL(lines.stream().filter(l -> l.startsWith("URL")).map(l -> l.substring(l.indexOf("=") + 1)).findFirst().get());
@@ -89,11 +95,11 @@ public class FileParser {
 		log.debug("Read " + input_file);
 		
 		if (lines.size() < 2) {
-			throw new IOException("File " + input_file.getName() + " is not an URL file (not enough lines)");
+			throw new UnsupportedOperationException("File " + input_file.getName() + " is not an URL file (not enough lines)");
 		} else if (lines.get(0).equals("[InternetShortcut]") == false) {
-			throw new IOException("File " + input_file.getName() + " is not an URL file (not valid header InternetShortcut)");
+			throw new UnsupportedOperationException("File " + input_file.getName() + " is not an URL file (not valid header InternetShortcut)");
 		} else if (lines.stream().noneMatch(l -> l.startsWith("URL="))) {
-			throw new IOException("File " + input_file.getName() + " is not an URL file (not valid var URL)");
+			throw new UnsupportedOperationException("File " + input_file.getName() + " is not an URL file (not valid var URL)");
 		}
 		
 		return new URL(lines.stream().filter(l -> l.startsWith("URL=")).map(l -> l.substring("URL=".length())).findFirst().get());

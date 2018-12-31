@@ -1,0 +1,9 @@
+max_width_res: 1920
+max_height_res: 1080
+best_aformat: mp4a
+best_vformat: avc1
+audiovideo_extension: mp4
+audioonly_extension: m4a
+only_audio: false
+scan_dir: Desktop
+out_dir: Downloads

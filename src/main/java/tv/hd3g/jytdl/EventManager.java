@@ -20,11 +20,9 @@ import java.awt.Desktop;
 import java.awt.Desktop.Action;
 import java.io.File;
 import java.io.FileNotFoundException;
-import java.io.FileReader;
 import java.io.IOException;
 import java.net.URL;
 import java.util.HashSet;
-import java.util.Properties;
 
 import org.apache.commons.lang.SystemUtils;
 import org.apache.logging.log4j.LogManager;
@@ -39,11 +37,10 @@ public class EventManager {
 	
 	private final HashSet<File> order_files;
 	private final ExecutableFinder ebp;
-	private final Properties prefs;
 	private final YoutubedlWrapper youtube_dl_wrapper;
 	private final FileParser file_parser;
 	
-	public EventManager(ExecutableFinder ebp, FileParser file_parser, File out_directory) throws IOException {
+	public EventManager(ExecutableFinder ebp, FileParser file_parser, Config config) throws IOException {
 		this.ebp = ebp;
 		if (ebp == null) {
 			throw new NullPointerException("\"ebp\" can't to be null");
@@ -52,21 +49,12 @@ public class EventManager {
 		if (file_parser == null) {
 			throw new NullPointerException("\"file_parser\" can't to be null");
 		}
-		if (out_directory == null) {
-			throw new NullPointerException("\"out_directory\" can't to be null");
-		} else if (out_directory.exists() == false) {
-			throw new RuntimeException("Invalid out_directory: " + out_directory.getPath() + ", don't exists");
-		} else if (out_directory.canWrite() == false) {
-			throw new RuntimeException("Invalid out_directory: " + out_directory.getPath() + ", can't write");
-		} else if (out_directory.isDirectory() == false) {
-			throw new RuntimeException("Invalid out_directory: " + out_directory.getPath() + ", is not au directory");
+		if (config == null) {
+			throw new NullPointerException("\"config\" can't to be null");
 		}
 		
 		order_files = new HashSet<>();
-		
-		prefs = new Properties();
-		prefs.load(new FileReader(new File("prefs.properties")));
-		youtube_dl_wrapper = new YoutubedlWrapper(ebp, out_directory, prefs);
+		youtube_dl_wrapper = new YoutubedlWrapper(ebp, config);
 	}
 	
 	public void onFoundFile(File new_file) {
@@ -84,6 +72,9 @@ public class EventManager {
 		log.info("Start scan file " + new_file);
 		try {
 			URL url = file_parser.getURL(new_file);
+			if (url == null) {
+				return;
+			}
 			
 			try {
 				youtube_dl_wrapper.download(youtube_dl_wrapper.prepareDownload(url));
