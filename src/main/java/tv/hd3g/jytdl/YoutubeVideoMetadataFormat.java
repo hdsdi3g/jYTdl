@@ -73,7 +73,26 @@ public class YoutubeVideoMetadataFormat {
 	int fps;
 	
 	public String toString() {
-		return format + ", " + tbr + " kbps (" + filesize + " bytes)";
+		StringBuilder sb = new StringBuilder();
+		sb.append(format);
+		sb.append("\t");
+		
+		if ("none".equals(vcodec) == false) {
+			sb.append(vcodec);
+			if ("none".equals(acodec) == false) {
+				sb.append("+");
+			}
+		}
+		if ("none".equals(acodec) == false) {
+			sb.append(acodec);
+		}
+		sb.append(", ");
+		sb.append(tbr);
+		sb.append(" kbps (");
+		sb.append(filesize);
+		sb.append(" bytes)");
+		
+		return sb.toString();
 	}
 	
 }

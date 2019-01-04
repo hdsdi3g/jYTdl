@@ -18,6 +18,7 @@ package tv.hd3g.jytdl;
 
 import java.text.DecimalFormat;
 import java.util.ArrayList;
+import java.util.function.Predicate;
 import java.util.stream.Stream;
 
 /**
@@ -93,33 +94,37 @@ class YoutubeVideoMetadata {
 	
 	ArrayList<YoutubeVideoMetadataFormat> formats;
 	
-	Stream<YoutubeVideoMetadataFormat> getAllAudioOnlyStreams() {
-		return formats.stream().filter(f -> {
-			if (f.acodec == null) {
+	static final Predicate<YoutubeVideoMetadataFormat> audioOnlyFilter = f -> {
+		if (f.acodec == null) {
+			return false;
+		} else if (f.vcodec != null) {
+			if (f.vcodec.equalsIgnoreCase("none") == false) {
 				return false;
-			} else if (f.vcodec != null) {
-				if (f.vcodec.equalsIgnoreCase("none") == false) {
-					return false;
-				}
 			}
-			return f.acodec.equalsIgnoreCase("none") == false;
-		});
+		}
+		return f.acodec.equalsIgnoreCase("none") == false;
+	};
+	
+	static final Predicate<YoutubeVideoMetadataFormat> videoOnlyFilter = f -> {
+		if (f.vcodec == null) {
+			return false;
+		} else if (f.acodec != null) {
+			if (f.acodec.equalsIgnoreCase("none") == false) {
+				return false;
+			}
+		}
+		return f.vcodec.equalsIgnoreCase("none") == false;
+	};
+	
+	Stream<YoutubeVideoMetadataFormat> getAllAudioOnlyStreams() {
+		return formats.stream().filter(audioOnlyFilter);
 	}
 	
 	Stream<YoutubeVideoMetadataFormat> getAllVideoOnlyStreams() {
-		return formats.stream().filter(f -> {
-			if (f.vcodec == null) {
-				return false;
-			} else if (f.acodec != null) {
-				if (f.acodec.equalsIgnoreCase("none") == false) {
-					return false;
-				}
-			}
-			return f.vcodec.equalsIgnoreCase("none") == false;
-		});
+		return formats.stream().filter(videoOnlyFilter);
 	}
 	
-	static Stream<YoutubeVideoMetadataFormat> keepOnlyThisCodec(Stream<YoutubeVideoMetadataFormat> a_v_formats, String base_codec_name) {
+	static Stream<YoutubeVideoMetadataFormat> selectBestCodec(Stream<YoutubeVideoMetadataFormat> a_v_formats, String base_codec_name) {
 		return a_v_formats.filter(f -> {
 			if (f.acodec != null) {
 				if (f.acodec.equalsIgnoreCase("none") == false) {

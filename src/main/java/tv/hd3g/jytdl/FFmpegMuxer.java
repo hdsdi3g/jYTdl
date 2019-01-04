@@ -61,8 +61,12 @@ public class FFmpegMuxer {
 			ffmpeg.addVideoCodecName("copy", -1);
 			ffmpeg.addAudioCodecName("copy", -1);
 		}
-		ffmpeg.addFastStartMovMp4File();
-		ffmpeg.addSimpleOutputDestination(mux_outfile.getAbsolutePath(), "mp4");
+		
+		if (media.isProcessMp4()) {
+			ffmpeg.addFastStartMovMp4File();
+		}
+		
+		ffmpeg.addSimpleOutputDestination(mux_outfile.getAbsolutePath());
 		
 		ExecProcessText ept_ffmpeg = ffmpeg.createExec();
 		ept_ffmpeg.setInteractiveHandler((source, line, is_std_err) -> {

@@ -89,7 +89,7 @@ public class YoutubedlWrapper {
 		
 		message_out_executor = Executors.newFixedThreadPool(1);
 		ffmpeg_muxer = new FFmpegMuxer(exec_binary_path, message_out_executor);
-		mp4tagger = new MP4Tagger(exec_binary_path, config, message_out_executor);
+		mp4tagger = new MP4Tagger(exec_binary_path, message_out_executor);
 		
 	}
 	
@@ -225,16 +225,17 @@ public class YoutubedlWrapper {
 			File a_outfile = new File(temp_dir.getAbsolutePath() + File.separator + "a-" + best_aformat.format_id + "." + best_aformat.ext);
 			simpleYtDownload(a_outfile, best_aformat, media.getMtd());
 			
-			String ext = config.audiovideo_extension;
-			if (media.isOnlyAudio()) {
-				ext = config.audioonly_extension;
+			File final_output_file = new File(out_directory.getCanonicalPath() + File.separator + media.getBaseOutFileName() + "." + media.getExtension());
+			
+			if (media.isProcessMp4()) {
+				File mux_outfile = new File(temp_dir.getAbsolutePath() + File.separator + "mux." + media.getExtension());
+				ffmpeg_muxer.muxStreams(media, mux_outfile, v_outfile, a_outfile);
+				media.downloadImage(image_download, temp_dir);
+				mp4tagger.addTagsToFile(media, mux_outfile, final_output_file);
+			} else {
+				ffmpeg_muxer.muxStreams(media, final_output_file, v_outfile, a_outfile);
+				log.info("Output format is not suitable for image/metadata injection, skip it.");
 			}
-			
-			File mux_outfile = new File(temp_dir.getAbsolutePath() + File.separator + "mux." + ext);
-			
-			ffmpeg_muxer.muxStreams(media, mux_outfile, v_outfile, a_outfile);
-			media.downloadImage(image_download, temp_dir);
-			mp4tagger.addTagsToFile(media, mux_outfile, out_directory);
 			
 			log.debug("Remove " + temp_dir);
 			FileUtils.forceDelete(temp_dir);

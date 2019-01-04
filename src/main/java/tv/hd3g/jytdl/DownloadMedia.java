@@ -20,12 +20,23 @@ import java.io.File;
 import java.io.IOException;
 import java.net.URL;
 import java.text.Normalizer;
+import java.util.List;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
+
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 
+import tv.hd3g.jytdl.Config.DownloadPolicyBestFormat;
+
 public class DownloadMedia {
+	
+	private static final Logger log = LogManager.getLogger();
+	
 	/**
 	 * Transform accents to non accented (ascii) version.
 	 */
@@ -37,6 +48,9 @@ public class DownloadMedia {
 	private YoutubeVideoMetadata mtd;
 	private String normalized_title;
 	private String normalized_uploader;
+	private YoutubeVideoMetadataFormat best_vstream;
+	private YoutubeVideoMetadataFormat best_astream;
+	private DownloadPolicyBestFormat best_format;
 	
 	DownloadMedia(URL source_url, Config config) {
 		this.source_url = source_url;
@@ -49,7 +63,6 @@ public class DownloadMedia {
 	
 	public static String removeFilenameForbiddenChars(String txt) {
 		String l1 = txt.replaceAll("<", "[").replaceAll(">", "]").replaceAll(":", "-").replaceAll("/", "-").replaceAll("\\\\", "-").replaceAll("\\|", " ").replaceAll("\\?", "").replaceAll("\\*", " ").replaceAll("\\\"", "”");
-		// Advanced Damage & Decay FX Tutorial! 100% After Effects!
 		l1 = l1.replaceAll("&", "-").replaceAll("%", "");
 		l1 = l1.replaceAll("        ", " ").replaceAll("       ", " ").replaceAll("      ", " ").replaceAll("     ", " ").replaceAll("    ", " ").replaceAll("   ", " ").replaceAll("  ", " ").replaceAll("---", "-").replaceAll("--", "-");
 		return l1;
@@ -61,6 +74,51 @@ public class DownloadMedia {
 		
 		normalized_title = removeFilenameForbiddenChars(PATTERN_Combining_Diacritical_Marks.matcher(Normalizer.normalize(mtd.fulltitle, Normalizer.Form.NFD)).replaceAll("").trim());
 		normalized_uploader = removeFilenameForbiddenChars(PATTERN_Combining_Diacritical_Marks.matcher(Normalizer.normalize(mtd.uploader, Normalizer.Form.NFD)).replaceAll("").trim());
+		
+		if (config.only_audio) {
+			best_format = config.audio_only_format;
+			best_astream = YoutubeVideoMetadata.orderByBitrate(YoutubeVideoMetadata.selectBestCodec(mtd.getAllAudioOnlyStreams(), best_format.a)).findFirst().orElse(null);
+		} else {
+			List<YoutubeVideoMetadataFormat> all_best_vstream = config.max_res.stream().flatMap(config_res -> {
+				return config.best_format.stream().map(best_format -> best_format.v).flatMap(config_best_vformat -> {
+					Stream<YoutubeVideoMetadataFormat> stream = mtd.getAllVideoOnlyStreams();
+					stream = YoutubeVideoMetadata.selectBestCodec(stream, config_best_vformat);
+					/*stream = YoutubeVideoMetadata.orderByVideoResolution(stream).dropWhile(f -> {
+						return f.width > config_res.w | f.height > config_res.h;
+					});
+					stream = YoutubeVideoMetadata.orderByBitrate(stream);*/
+					return stream;
+				});
+			}).collect(Collectors.toUnmodifiableList());
+			
+			all_best_vstream = YoutubeVideoMetadata.orderByBitrate(YoutubeVideoMetadata.orderByVideoResolution(all_best_vstream.stream())).collect(Collectors.toUnmodifiableList());
+			
+			best_vstream = all_best_vstream.stream().findFirst().orElse(null);
+			
+			best_astream = config.best_format.stream().map(best_format -> best_format.a).flatMap(config_best_aformat -> {
+				return YoutubeVideoMetadata.orderByBitrate(YoutubeVideoMetadata.selectBestCodec(mtd.getAllAudioOnlyStreams(), config_best_aformat));
+			}).findFirst().orElse(null);
+			
+			best_format = config.best_format.stream().filter(format -> {
+				return best_vstream.vcodec.startsWith(format.v);
+			}).findFirst().orElse(config.best_format.get(0));
+			
+			/*best_format = config.max_res.stream().flatMap(config_res -> {
+				return config.best_format.stream().flatMap(config_best_format -> {
+					Stream<YoutubeVideoMetadataFormat> stream = YoutubeVideoMetadata.selectBestCodec(mtd.getAllVideoOnlyStreams(), config_best_format.v);
+					stream = YoutubeVideoMetadata.orderByBitrate(YoutubeVideoMetadata.orderByVideoResolution(stream));
+					
+					if (stream.findFirst().isPresent()) {
+						return Stream.of(config_best_format);
+					} else {
+						return Stream.empty();
+					}
+				});
+			}).findFirst().orElse(config.best_format.get(0));*/
+			
+		}
+		
+		log.info("Wanted format: {}, selected: {}, {}", best_format, best_vstream, best_astream);
 	}
 	
 	public YoutubeVideoMetadata getMtd() {
@@ -79,20 +137,26 @@ public class DownloadMedia {
 		return normalized_title + " ➠ " + normalized_uploader + "  " + mtd.id;
 	}
 	
+	public String getExtension() {
+		return best_format.ext;
+	}
+	
+	public boolean isProcessMp4() {
+		return best_format.process_mp4;
+	}
+	
 	/**
 	 * @return can be null
 	 */
 	public YoutubeVideoMetadataFormat getBestVideoStream() {
-		return YoutubeVideoMetadata.orderByBitrate(YoutubeVideoMetadata.orderByVideoResolution(YoutubeVideoMetadata.keepOnlyThisCodec(mtd.getAllVideoOnlyStreams(), config.best_vformat)).dropWhile(f -> {
-			return f.width > config.max_width_res | f.height > config.max_height_res;
-		})).findFirst().orElse(null);
+		return best_vstream;
 	}
 	
 	/**
 	 * @return can be null
 	 */
 	public YoutubeVideoMetadataFormat getBestAudioStream() {
-		return YoutubeVideoMetadata.orderByBitrate(YoutubeVideoMetadata.keepOnlyThisCodec(mtd.getAllAudioOnlyStreams(), config.best_aformat)).findFirst().orElse(null);
+		return best_astream;
 	}
 	
 	private File thumbnail_image;

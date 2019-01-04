@@ -32,15 +32,13 @@ public class MP4Tagger {
 	
 	private final ExecutableFinder exec_binary_path;
 	private final Executor message_out_executor;
-	private final Config config;
 	
-	MP4Tagger(ExecutableFinder exec_binary_path, Config config, Executor message_out_executor) {
+	MP4Tagger(ExecutableFinder exec_binary_path, Executor message_out_executor) {
 		this.exec_binary_path = exec_binary_path;
-		this.config = config;
 		this.message_out_executor = message_out_executor;
 	}
 	
-	public void addTagsToFile(DownloadMedia media, File mux_outfile, File out_directory) throws IOException {
+	public void addTagsToFile(DownloadMedia media, File mux_outfile, File output_file) throws IOException {
 		final ExecProcessText ept = new ExecProcessText("AtomicParsley", exec_binary_path);
 		
 		ept.addParameters(mux_outfile.getAbsolutePath());
@@ -92,11 +90,6 @@ public class MP4Tagger {
 			if (media.getMtd().tags.isEmpty() == false) {
 				ept.addParameters("--keyword", media.getMtd().tags.stream().collect(Collectors.joining(",")));
 			}
-		}
-		
-		File output_file = new File(out_directory.getCanonicalPath() + File.separator + media.getBaseOutFileName() + "." + config.audiovideo_extension);
-		if (media.isOnlyAudio()) {
-			output_file = new File(out_directory.getCanonicalPath() + File.separator + media.getBaseOutFileName() + "." + config.audioonly_extension);
 		}
 		
 		ept.addParameters("--output", output_file.getAbsolutePath());

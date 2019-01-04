@@ -5,6 +5,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 import org.w3c.dom.Document;
@@ -68,6 +69,7 @@ public class WindowsPackage {// TODO remove from here
 		final File winrun_dir = new File(get_wd.getPath() + File.separator + "win64-ressources");
 		final File winrun_dir_exe = new File(winrun_dir.getPath() + File.separator + "WinRun4J64.exe");
 		final File winrun_dir_rcedit = new File(winrun_dir.getPath() + File.separator + "RCEDIT64.exe");
+		final File winrun_dir_icon = new File(winrun_dir.getPath() + File.separator + "icon.ico");
 		// final File winrun_dir_ini = new File(winrun_dir.getPath() + File.separator + "WinRun4J64.ini");
 		final File config_dir = new File(get_wd.getPath() + File.separator + "src" + File.separator + "main" + File.separator + "config");
 		
@@ -120,7 +122,19 @@ public class WindowsPackage {// TODO remove from here
 		Files.copy(winrun_dir_exe.toPath(), winrun_exec_dest.toPath());
 		Files.copy(main_app_jar.toPath(), new File(win_deploy_lib_dir.getAbsolutePath() + File.separator + main_app_jar.getName()).toPath());
 		
-		// TODO bake icon winrun_dir_rcedit "/I winrun_exec_dest [YourApp].ico"
+		/**
+		 * Bake icon in exe
+		 */
+		if (winrun_dir_icon.exists()) {
+			ProcessBuilder process_builder = new ProcessBuilder(winrun_dir_rcedit.getAbsolutePath(), "/I", winrun_exec_dest.getAbsolutePath(), "icon.ico");
+			Process process = process_builder.start();
+			process.waitFor(2, TimeUnit.SECONDS);
+			if (process.exitValue() != 0) {
+				System.err.println("ERROR: invalid icon embedding in WinRun4J64 exe (" + winrun_exec_dest.getAbsolutePath() + ")");
+			}
+		} else {
+			System.out.println("Can't found icon in " + winrun_dir_icon.getAbsolutePath() + ", ignore icon baking in exe");
+		}
 		
 		/**
 		 * Write WinRun4J64 ini content
