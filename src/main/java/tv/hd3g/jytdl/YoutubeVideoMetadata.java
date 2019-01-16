@@ -24,75 +24,75 @@ import java.util.stream.Stream;
 /**
  * Ignore here like_count, view_count, dislike_count, average_rating, subtitles, age_limit, automatic_captions, thumbnails.
  */
-class YoutubeVideoMetadata {
+public class YoutubeVideoMetadata {
 	
 	public String toString() {
-		return "\"" + fulltitle + "\" by " + uploader + " [" + id + "]";
+		return "\"" + fulltitle.trim() + "\" by " + uploader + " [" + id + "]";
 	}
 	
-	String id;
+	public String id;
 	
-	int age_limit;
+	public int age_limit;
 	
 	/**
 	 * Like 20180330, YYYYMMDD
 	 */
-	String upload_date;
+	public String upload_date;
 	
 	/**
 	 * Like https://www.youtube.com/watch?v=deVeHV3cnnbI
 	 */
-	String webpage_url;
+	public String webpage_url;
 	
 	/**
 	 * In seconds
 	 */
-	int duration;
+	public int duration;
 	
-	String fulltitle;
+	public String fulltitle;
 	
 	/**
 	 * Like http://www.youtube.com/user/BaptetGael
 	 */
-	String uploader_url;
+	public String uploader_url;
 	
-	String description;
+	public String description;
 	
-	ArrayList<String> tags;
+	public ArrayList<String> tags;
 	
 	/**
 	 * Like "Bapt&Gael"
 	 */
-	String uploader;
+	public String uploader;
 	
 	/**
 	 * Like "BaptetGael" or "UCb1UI8X57325r8zS1fI7uUw"
 	 */
-	String uploader_id;
+	public String uploader_id;
 	
-	ArrayList<String> categories;
+	public ArrayList<String> categories;
 	
 	/**
 	 * Like "Standard YouTube License"
 	 */
-	String license;
+	public String license;
 	
 	/**
 	 * Like "Youtube"
 	 */
-	String extractor_key;
+	public String extractor_key;
 	
 	/**
 	 * URL like https://i.ytimg.com/vi/eVeHV3cnnbI/maxresdefault.jpg
 	 */
-	String thumbnail;
+	public String thumbnail;
 	
 	/**
 	 * Like "youtube"
 	 */
-	String extractor;
+	public String extractor;
 	
-	ArrayList<YoutubeVideoMetadataFormat> formats;
+	public ArrayList<YoutubeVideoMetadataFormat> formats;
 	
 	static final Predicate<YoutubeVideoMetadataFormat> audioOnlyFilter = f -> {
 		if (f.acodec == null) {

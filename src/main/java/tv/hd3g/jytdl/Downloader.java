@@ -11,7 +11,7 @@
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU Lesser General Public License for more details.
  * 
- * Copyright (C) hdsdi3g for hd3g.tv 2018
+ * Copyright (C) hdsdi3g for hd3g.tv 2019
  * 
 */
 package tv.hd3g.jytdl;
@@ -19,60 +19,50 @@ package tv.hd3g.jytdl;
 import java.io.File;
 import java.io.IOException;
 import java.net.URL;
-import java.util.Arrays;
 import java.util.Optional;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.TimeUnit;
 
 import org.apache.commons.io.FileUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-import tv.hd3g.execprocess.CommandLineProcessor;
-import tv.hd3g.execprocess.ExecProcessText;
 import tv.hd3g.execprocess.ExecutableFinder;
-import tv.hd3g.execprocess.InteractiveExecProcessHandler;
-import tv.hd3g.fflauncher.FFmpeg;
+import tv.hd3g.jytdl.tools.FFmpegMuxer;
+import tv.hd3g.jytdl.tools.ImageDownload;
+import tv.hd3g.jytdl.tools.AtomicParsley;
+import tv.hd3g.jytdl.tools.YoutubeDl;
 
-public class YoutubedlWrapper {
+public class Downloader {
 	
 	private static final Logger log = LogManager.getLogger();
 	
-	static void doChecks(ExecutableFinder exec_finder) throws IOException {
-		ScheduledExecutorService max_exec_time_scheduler = Executors.newScheduledThreadPool(1);
-		
-		ExecProcessText exec = new ExecProcessText("youtube-dl", exec_finder).addParameters("--version").setMaxExecutionTime(10, TimeUnit.SECONDS, max_exec_time_scheduler);
-		String version = exec.run().checkExecution().getStdouterr(false, "; ");
-		
-		log.info("Use youtube-dl version " + version);
-		
-		FFmpeg ffmpeg = new FFmpeg(exec_finder, new CommandLineProcessor().createEmptyCommandLine("ffmpeg"));
-		log.info("Use ffmpeg " + ffmpeg.getAbout().getVersion().header_version);
-		
-		exec = new ExecProcessText("AtomicParsley", exec_finder).addParameters("-version").setMaxExecutionTime(15, TimeUnit.SECONDS, max_exec_time_scheduler);
-		version = exec.run().checkExecution().getStdouterr(false, "; ");
-		log.info("Use " + version);
-	}
-	
-	private final ExecutableFinder exec_binary_path;
-	private final File out_directory;
-	private final ExecutorService message_out_executor;
 	private final Config config;
+	private final File out_directory;
+	
 	private final ImageDownload image_download;
 	private final FFmpegMuxer ffmpeg_muxer;
-	private final MP4Tagger mp4tagger;
+	private final AtomicParsley mp4tagger;
+	private final YoutubeDl youtubedl;
 	
-	public YoutubedlWrapper(ExecutableFinder eb_path, Config config) {
-		exec_binary_path = eb_path;
-		if (eb_path == null) {
-			throw new NullPointerException("\"eb_path\" can't to be null");
-		}
+	public Downloader(ExecutableFinder exec_binary_path, Config config, ExecutorService message_out_executor) throws IOException {
 		this.config = config;
 		if (config == null) {
 			throw new NullPointerException("\"config\" can't to be null");
 		}
+		
+		image_download = new ImageDownload();
+		
+		ScheduledExecutorService max_exec_time_scheduler = Executors.newScheduledThreadPool(1);
+		youtubedl = new YoutubeDl(exec_binary_path, config, message_out_executor);
+		youtubedl.autoTestExecutable(max_exec_time_scheduler);
+		
+		ffmpeg_muxer = new FFmpegMuxer(exec_binary_path, config, message_out_executor);
+		ffmpeg_muxer.autoTestExecutable(max_exec_time_scheduler);
+		
+		mp4tagger = new AtomicParsley(exec_binary_path, config, message_out_executor);
+		mp4tagger.autoTestExecutable(max_exec_time_scheduler);
 		
 		out_directory = config.getOutDir();
 		if (out_directory == null) {
@@ -84,54 +74,9 @@ public class YoutubedlWrapper {
 		} else if (out_directory.isDirectory() == false) {
 			throw new RuntimeException("Invalid out_directory: " + out_directory.getPath() + ", is not au directory");
 		}
-		
-		image_download = new ImageDownload();
-		
-		message_out_executor = Executors.newFixedThreadPool(1);
-		ffmpeg_muxer = new FFmpegMuxer(exec_binary_path, message_out_executor);
-		mp4tagger = new MP4Tagger(exec_binary_path, message_out_executor);
-		
 	}
 	
-	private void youtubedlExec(InteractiveExecProcessHandler interactive_handler, File working_dir, String... user_params) throws IOException {
-		ExecProcessText ept = new ExecProcessText("youtube-dl", exec_binary_path);
-		
-		ept.addBulkParameters("--no-color --no-playlist --retries 3");
-		
-		String limit_rate = System.getProperty("limit_rate");
-		if (limit_rate != null) {
-			if (limit_rate.equals("") == false) {
-				ept.addParameters("--limit-rate", String.valueOf(limit_rate));
-			}
-		}
-		ept.addParameters(Arrays.asList(user_params));
-		ept.setInteractiveHandler(interactive_handler, message_out_executor);
-		ept.setWorkingDirectory(working_dir);
-		
-		ept.run().checkExecution();
-	}
-	
-	private String youtubedlExec(String... user_params) throws IOException {
-		return youtubedlExec(new File(System.getProperty("java.io.tmpdir")), user_params);
-	}
-	
-	private String youtubedlExec(File working_dir, String... user_params) throws IOException {
-		StringBuffer sb = new StringBuffer();
-		
-		youtubedlExec((source, line, is_std_err) -> {
-			if (is_std_err) {
-				System.err.println("Youtube-dl | " + line);
-			} else {
-				sb.append(line);
-				sb.append(System.getProperty("line.separator"));
-			}
-			return null;
-		}, working_dir, user_params);
-		
-		return sb.toString();
-	}
-	
-	DownloadMedia prepareDownload(URL source_url) throws IOException {
+	void download(URL source_url) throws IOException, InterruptedException {
 		if (source_url == null) {
 			throw new NullPointerException("\"source\" can't to be null");
 		}
@@ -141,33 +86,11 @@ public class YoutubedlWrapper {
 		/**
 		 * Test if URL is valid.
 		 */
-		String youtube_id = youtubedlExec("--get-id", source_url.toString());
+		String youtube_id = youtubedl.getId(source_url);
 		log.debug("Id is " + youtube_id);
 		
-		/*List<String> format_list = Arrays.asList(youtubedlExec("--list-formats", source_url.toString()).split("\\r?\\n"));
-		format_list.removeIf(t -> {
-			
-			 * Header starts like:
-			 * [youtube] eVeHV3cnnbI: Downloading webpage
-			 * [youtube] eVeHV3cnnbI: Downloading video info webpage
-			 * [youtube] eVeHV3cnnbI: Extracting video information
-			 * [info] Available formats for eVeHV3cnnbI:
-			 * format code extension resolution note
-			 * ---
-			 
-			return t.contains(youtube_id) | t.startsWith("format");
-		});
-		format_list.forEach(t -> System.out.println(t));
-		*/
-		return new DownloadMedia(source_url, config);
-	}
-	
-	void download(DownloadMedia media) throws IOException, InterruptedException {
-		if (media == null) {
-			throw new NullPointerException("\"media\" can't to be null");
-		}
-		
-		media.setJsonMetadata(youtubedlExec("--dump-json", media.getSourceURL().toString()));
+		MediaAsset media = new MediaAsset(source_url, config);
+		media.setJsonMetadata(youtubedl.getRawJsonMetadata(media.getSourceURL()));
 		
 		YoutubeVideoMetadataFormat best_aformat = media.getBestAudioStream();
 		YoutubeVideoMetadataFormat best_vformat = media.getBestVideoStream();
@@ -196,7 +119,7 @@ public class YoutubedlWrapper {
 				return;
 			}
 			
-			simpleYtDownload(output_file, to_download, media.getMtd());
+			youtubedl.downloadSpecificFormat(output_file, to_download, media.getMtd());
 			
 			boolean modified = output_file.setLastModified(System.currentTimeMillis());
 			if (modified == false) {
@@ -217,13 +140,13 @@ public class YoutubedlWrapper {
 				log.info("Download " + media.getMtd() + "; " + YoutubeVideoMetadata.computeTotalSizeToDownload(best_aformat, best_vformat));
 				
 				v_outfile = new File(temp_dir.getAbsolutePath() + File.separator + "v-" + best_vformat.format_id + "." + best_vformat.ext);
-				simpleYtDownload(v_outfile, best_vformat, media.getMtd());
+				youtubedl.downloadSpecificFormat(v_outfile, best_vformat, media.getMtd());
 			} else {
 				log.info("Download audio only " + media.getMtd() + "; " + YoutubeVideoMetadata.readableFileSize(best_aformat.filesize) + "ytes");
 			}
 			
 			File a_outfile = new File(temp_dir.getAbsolutePath() + File.separator + "a-" + best_aformat.format_id + "." + best_aformat.ext);
-			simpleYtDownload(a_outfile, best_aformat, media.getMtd());
+			youtubedl.downloadSpecificFormat(a_outfile, best_aformat, media.getMtd());
 			
 			File final_output_file = new File(out_directory.getCanonicalPath() + File.separator + media.getBaseOutFileName() + "." + media.getExtension());
 			
@@ -240,19 +163,6 @@ public class YoutubedlWrapper {
 			log.debug("Remove " + temp_dir);
 			FileUtils.forceDelete(temp_dir);
 		}
-	}
-	
-	private void simpleYtDownload(File output_file, YoutubeVideoMetadataFormat format, YoutubeVideoMetadata mtd) throws IOException {
-		log.info("Download " + mtd + " download format: \"" + format + "\" to \"" + output_file.getName() + "\"");
-		
-		youtubedlExec((source, line, is_std_err) -> {
-			if (is_std_err) {
-				System.err.println("Youtube-dl | " + line);
-			} else {
-				System.out.println("Youtube-dl | " + line);
-			}
-			return null;
-		}, output_file.getParentFile(), "--format", format.format_id, "--output", output_file.getPath(), mtd.webpage_url);
 	}
 	
 }

@@ -24,53 +24,53 @@ public class YoutubeVideoMetadataFormat {
 	/**
 	 * Like "249 - audio only (DASH audio)", "140 - audio only (DASH audio)", "248 - 1920x1080 (1080p)"
 	 */
-	String format;
+	public String format;
 	
 	/**
 	 * Like "vp9", "avc1.640028", "none"
 	 */
-	String vcodec;
+	public String vcodec;
 	
 	/**
 	 * Like "opus", "mp4a.40.2", "none"
 	 */
-	String acodec;
+	public String acodec;
 	
 	/**
 	 * In kbps
 	 * like 56.559, 127.907, 1729.513
 	 */
-	float tbr;
+	public float tbr;
 	
 	/**
 	 * Like "webm", "m4a"
 	 */
-	String ext;
+	public String ext;
 	
 	/**
 	 * 171, 140, 248
 	 */
-	String format_id;
+	public String format_id;
 	
 	/**
 	 * In bytes
 	 */
-	long filesize;
+	public long filesize;
 	
 	/**
 	 * Like 1080
 	 */
-	int height;
+	public int height;
 	
 	/**
 	 * Like 1920
 	 */
-	int width;
+	public int width;
 	
 	/**
 	 * Like 24
 	 */
-	int fps;
+	public int fps;
 	
 	public String toString() {
 		StringBuilder sb = new StringBuilder();

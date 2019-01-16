@@ -17,6 +17,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import tv.hd3g.execprocess.ExecutableFinder;
+import tv.hd3g.jytdl.tools.ShortcutFileParser;
 
 public class App {
 	
@@ -32,23 +33,8 @@ public class App {
 			return name.equals("config.yml");
 		}))).findFirst().orElseThrow(() -> new FileNotFoundException("Can't found config.yml in classpath"));
 		
-		Config config = Config.loadYml(config_file);
-		
-		/**
-		 * Async test YoutubedlWrapper
-		 */
-		ExecutableFinder ex_finder = new ExecutableFinder();
-		Thread t = new Thread(() -> {
-			try {
-				YoutubedlWrapper.doChecks(ex_finder);
-			} catch (IOException e) {
-				log.fatal("Checking error", e);
-				System.exit(1);
-			}
-		}, "ChkExternalTools");
-		t.setDaemon(true);
-		t.setPriority(Thread.MAX_PRIORITY);
-		t.start();
+		final Config config = Config.loadYml(config_file);
+		final ExecutableFinder ex_finder = new ExecutableFinder();
 		
 		File scan_dir = config.getScanDir();
 		if (scan_dir.exists() == false) {
@@ -62,13 +48,13 @@ public class App {
 		WatchService watcher = FileSystems.getDefault().newWatchService();
 		scan_dir.toPath().register(watcher, StandardWatchEventKinds.ENTRY_CREATE, StandardWatchEventKinds.ENTRY_DELETE, StandardWatchEventKinds.ENTRY_MODIFY, StandardWatchEventKinds.OVERFLOW);
 		
-		FileParser file_parser = new FileParser();
+		ShortcutFileParser file_parser = new ShortcutFileParser();
 		EventManager event_manager = new EventManager(ex_finder, file_parser, config);
 		
 		/**
 		 * Process actual files
 		 */
-		FileUtils.iterateFiles(scan_dir, FileParser.ALL_MANAGED_EXTENSIONS, false).forEachRemaining(file_parser.validateExtension(f -> {
+		FileUtils.iterateFiles(scan_dir, ShortcutFileParser.ALL_MANAGED_EXTENSIONS, false).forEachRemaining(file_parser.validateExtension(f -> {
 			event_manager.onFoundFile(f.getAbsoluteFile());
 		}));
 		

@@ -14,7 +14,7 @@
  * Copyright (C) hdsdi3g for hd3g.tv 2018
  * 
 */
-package tv.hd3g.jytdl;
+package tv.hd3g.jytdl.tools;
 
 import java.io.File;
 import java.io.IOException;
@@ -31,7 +31,10 @@ import org.apache.commons.io.FilenameUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-public class FileParser {
+/**
+ * Parse Windows's url files and Linux's (Open Desktop) desktop files.
+ */
+public class ShortcutFileParser {
 	
 	private static final Logger log = LogManager.getLogger();
 	
@@ -41,7 +44,7 @@ public class FileParser {
 	
 	private final HashMap<String, Function<File, URL>> map_file_parser_by_file_extension;
 	
-	public FileParser() {
+	public ShortcutFileParser() {
 		map_file_parser_by_file_extension = new HashMap<>();
 		map_file_parser_by_file_extension.put(URL_EXT, f -> {
 			try {
@@ -105,7 +108,7 @@ public class FileParser {
 		return new URL(lines.stream().filter(l -> l.startsWith("URL=")).map(l -> l.substring("URL=".length())).findFirst().get());
 	}
 	
-	Consumer<File> validateExtension(Consumer<File> onValidation) {
+	public Consumer<File> validateExtension(Consumer<File> onValidation) {
 		return f -> {
 			String ext = FilenameUtils.getExtension(f.getPath());
 			

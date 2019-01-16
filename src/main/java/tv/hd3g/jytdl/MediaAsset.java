@@ -32,8 +32,9 @@ import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 
 import tv.hd3g.jytdl.Config.DownloadPolicyBestFormat;
+import tv.hd3g.jytdl.tools.ImageDownload;
 
-public class DownloadMedia {
+public class MediaAsset {
 	
 	private static final Logger log = LogManager.getLogger();
 	
@@ -52,7 +53,7 @@ public class DownloadMedia {
 	private YoutubeVideoMetadataFormat best_astream;
 	private DownloadPolicyBestFormat best_format;
 	
-	DownloadMedia(URL source_url, Config config) {
+	MediaAsset(URL source_url, Config config) {
 		this.source_url = source_url;
 		this.config = config;
 	}
@@ -72,8 +73,8 @@ public class DownloadMedia {
 		Gson g = new GsonBuilder().setPrettyPrinting().create();
 		mtd = g.fromJson(asset_metadatas_json, YoutubeVideoMetadata.class);
 		
-		normalized_title = removeFilenameForbiddenChars(PATTERN_Combining_Diacritical_Marks.matcher(Normalizer.normalize(mtd.fulltitle, Normalizer.Form.NFD)).replaceAll("").trim());
-		normalized_uploader = removeFilenameForbiddenChars(PATTERN_Combining_Diacritical_Marks.matcher(Normalizer.normalize(mtd.uploader, Normalizer.Form.NFD)).replaceAll("").trim());
+		normalized_title = removeFilenameForbiddenChars(PATTERN_Combining_Diacritical_Marks.matcher(Normalizer.normalize(mtd.fulltitle.trim(), Normalizer.Form.NFD)).replaceAll("").trim()).trim();
+		normalized_uploader = removeFilenameForbiddenChars(PATTERN_Combining_Diacritical_Marks.matcher(Normalizer.normalize(mtd.uploader, Normalizer.Form.NFD)).replaceAll("").trim()).trim();
 		
 		if (config.only_audio) {
 			best_format = config.audio_only_format;

@@ -14,7 +14,7 @@
  * Copyright (C) hdsdi3g for hd3g.tv 2018
  * 
 */
-package tv.hd3g.jytdl;
+package tv.hd3g.jytdl.tools;
 
 import java.io.File;
 import java.io.IOException;
@@ -28,10 +28,12 @@ import org.apache.commons.io.FilenameUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import tv.hd3g.jytdl.MediaAsset;
+
 public class ImageDownload {
 	private static Logger log = LogManager.getLogger();
 	
-	public File download(DownloadMedia media, File temp_dir) throws IOException {
+	public File download(MediaAsset media, File temp_dir) throws IOException {
 		File thumbnail_image = null;
 		
 		if (media.getMtd().thumbnail != null) {

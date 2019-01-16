@@ -16,33 +16,31 @@
 */
 package tv.hd3g.jytdl;
 
-import java.awt.Desktop;
-import java.awt.Desktop.Action;
 import java.io.File;
-import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.net.URL;
 import java.util.HashSet;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
-import org.apache.commons.lang.SystemUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-import tv.hd3g.execprocess.ExecProcessText;
 import tv.hd3g.execprocess.ExecutableFinder;
+import tv.hd3g.jytdl.tools.ShortcutFileParser;
+import tv.hd3g.jytdl.tools.Trash;
 
 public class EventManager {
 	
 	private static final Logger log = LogManager.getLogger();
 	
 	private final HashSet<File> order_files;
-	private final ExecutableFinder ebp;
-	private final YoutubedlWrapper youtube_dl_wrapper;
-	private final FileParser file_parser;
+	private final Downloader downloader;
+	private final ShortcutFileParser file_parser;
+	private final Trash trash;
 	
-	public EventManager(ExecutableFinder ebp, FileParser file_parser, Config config) throws IOException {
-		this.ebp = ebp;
-		if (ebp == null) {
+	public EventManager(ExecutableFinder exec_binary_path, ShortcutFileParser file_parser, Config config) throws IOException {
+		if (exec_binary_path == null) {
 			throw new NullPointerException("\"ebp\" can't to be null");
 		}
 		this.file_parser = file_parser;
@@ -54,7 +52,10 @@ public class EventManager {
 		}
 		
 		order_files = new HashSet<>();
-		youtube_dl_wrapper = new YoutubedlWrapper(ebp, config);
+		
+		ExecutorService message_out_executor = Executors.newFixedThreadPool(1);
+		downloader = new Downloader(exec_binary_path, config, message_out_executor);
+		trash = new Trash(exec_binary_path, config, message_out_executor);
 	}
 	
 	public void onFoundFile(File new_file) {
@@ -77,7 +78,7 @@ public class EventManager {
 			}
 			
 			try {
-				youtube_dl_wrapper.download(youtube_dl_wrapper.prepareDownload(url));
+				downloader.download(url);
 			} catch (IOException | InterruptedException e) {
 				log.error("Can't process " + url + " from " + new_file, e);
 			}
@@ -85,57 +86,12 @@ public class EventManager {
 			log.error("Can't process " + new_file.getName(), e);
 		}
 		
-		moveToTrash(new_file);
+		trash.moveToTrash(new_file);
 		
 		if (new_file.exists() == false) {
 			synchronized (order_files) {
 				order_files.remove(new_file);
 			}
-		}
-	}
-	
-	private void moveToTrash(File order_file) {
-		if (SystemUtils.IS_OS_WINDOWS) {
-			try {
-				log.debug("Use recycle to delete file " + order_file.getAbsolutePath());
-				ExecProcessText ept = new ExecProcessText("recycle", ebp);
-				ept.addParameters("-f", order_file.getAbsolutePath());
-				ept.run().checkExecution();
-				return;
-			} catch (FileNotFoundException e) {
-				log.warn("Can't found recycle.exe in current PATH");
-			} catch (IOException e) {
-				log.error("Can't execute recycle.exe", e);
-			}
-		}
-		
-		if (Desktop.isDesktopSupported()) {
-			if (Desktop.getDesktop().isSupported(Action.MOVE_TO_TRASH)) {
-				log.debug("Use Java Desktop.moveToTrash to delete file " + order_file.getAbsolutePath());
-				if (Desktop.getDesktop().moveToTrash(order_file)) {
-					return;
-				} else {
-					log.warn("Can't move to trash " + order_file.getAbsolutePath());
-				}
-			}
-		}
-		
-		try {
-			/**
-			 * KDE utility
-			 */
-			ExecProcessText ept = new ExecProcessText("kioclient", ebp);
-			ept.addParameters("move", order_file.getAbsolutePath(), "trash:/");
-			log.debug("Use KDE kioclient to delete file " + order_file.getAbsolutePath());
-			ept.run().checkExecution();
-			return;
-		} catch (FileNotFoundException e) {
-		} catch (IOException e) {
-			log.error("Can't execute kioclient", e);
-		}
-		
-		if (order_file.delete() == false) {
-			log.warn("Can't remove " + order_file.getAbsolutePath());
 		}
 	}
 	

@@ -14,11 +14,13 @@
  * Copyright (C) hdsdi3g for hd3g.tv 2018
  * 
 */
-package tv.hd3g.jytdl;
+package tv.hd3g.jytdl.tools;
 
 import java.io.File;
 import java.io.IOException;
 import java.util.concurrent.Executor;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 import org.apache.logging.log4j.LogManager;
@@ -26,24 +28,31 @@ import org.apache.logging.log4j.Logger;
 
 import tv.hd3g.execprocess.ExecProcessText;
 import tv.hd3g.execprocess.ExecutableFinder;
+import tv.hd3g.jytdl.Config;
+import tv.hd3g.jytdl.MediaAsset;
 
-public class MP4Tagger {
+/**
+ * Add/set MP4 tags
+ */
+public class AtomicParsley extends Tool {
 	private static Logger log = LogManager.getLogger();
 	
-	private final ExecutableFinder exec_binary_path;
-	private final Executor message_out_executor;
-	
-	MP4Tagger(ExecutableFinder exec_binary_path, Executor message_out_executor) {
-		this.exec_binary_path = exec_binary_path;
-		this.message_out_executor = message_out_executor;
+	public AtomicParsley(ExecutableFinder exec_binary_path, Config config, Executor message_out_executor) {
+		super(exec_binary_path, config, message_out_executor);
 	}
 	
-	public void addTagsToFile(DownloadMedia media, File mux_outfile, File output_file) throws IOException {
+	public void autoTestExecutable(ScheduledExecutorService max_exec_time_scheduler) throws IOException {
+		ExecProcessText exec = new ExecProcessText("AtomicParsley", exec_binary_path).addParameters("-version").setMaxExecutionTime(15, TimeUnit.SECONDS, max_exec_time_scheduler);
+		String version = exec.run().checkExecution().getStdouterr(false, "; ");
+		log.info("Use " + version);
+	}
+	
+	public void addTagsToFile(MediaAsset media, File mux_outfile, File output_file) throws IOException {
 		final ExecProcessText ept = new ExecProcessText("AtomicParsley", exec_binary_path);
 		
 		ept.addParameters(mux_outfile.getAbsolutePath());
 		ept.addParameters("--artist", media.getMtd().uploader);
-		ept.addParameters("--title", media.getMtd().fulltitle);
+		ept.addParameters("--title", media.getMtd().fulltitle.trim());
 		ept.addParameters("--album", media.getMtd().extractor_key);
 		ept.addParameters("--grouping", media.getMtd().extractor_key);
 		ept.addParameters("--comment", media.getMtd().description.substring(0, Math.min(255, media.getMtd().description.length())));

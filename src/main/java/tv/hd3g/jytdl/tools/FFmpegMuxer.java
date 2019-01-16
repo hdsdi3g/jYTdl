@@ -14,11 +14,12 @@
  * Copyright (C) hdsdi3g for hd3g.tv 2018
  * 
 */
-package tv.hd3g.jytdl;
+package tv.hd3g.jytdl.tools;
 
 import java.io.File;
 import java.io.IOException;
 import java.util.concurrent.Executor;
+import java.util.concurrent.ScheduledExecutorService;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -28,19 +29,22 @@ import tv.hd3g.execprocess.ExecProcessText;
 import tv.hd3g.execprocess.ExecutableFinder;
 import tv.hd3g.fflauncher.FFLogLevel;
 import tv.hd3g.fflauncher.FFmpeg;
+import tv.hd3g.jytdl.Config;
+import tv.hd3g.jytdl.MediaAsset;
 
-public class FFmpegMuxer {
+public class FFmpegMuxer extends Tool {
 	private static Logger log = LogManager.getLogger();
 	
-	private final ExecutableFinder exec_binary_path;
-	private final Executor message_out_executor;
-	
-	FFmpegMuxer(ExecutableFinder exec_binary_path, Executor message_out_executor) {
-		this.exec_binary_path = exec_binary_path;
-		this.message_out_executor = message_out_executor;
+	public FFmpegMuxer(ExecutableFinder exec_binary_path, Config config, Executor message_out_executor) {
+		super(exec_binary_path, config, message_out_executor);
 	}
 	
-	public void muxStreams(DownloadMedia media, File mux_outfile, File v_outfile, File a_outfile) throws IOException {
+	public void autoTestExecutable(ScheduledExecutorService max_exec_time_scheduler) throws IOException {
+		FFmpeg ffmpeg = new FFmpeg(exec_binary_path, new CommandLineProcessor().createEmptyCommandLine("ffmpeg"));
+		log.info("Use ffmpeg " + ffmpeg.getAbout().getVersion().header_version);
+	}
+	
+	public void muxStreams(MediaAsset media, File mux_outfile, File v_outfile, File a_outfile) throws IOException {
 		log.info("Assemble media files " + media.getMtd() + " to " + mux_outfile.getName());
 		
 		FFmpeg ffmpeg = new FFmpeg(exec_binary_path, new CommandLineProcessor().createEmptyCommandLine("ffmpeg"));
