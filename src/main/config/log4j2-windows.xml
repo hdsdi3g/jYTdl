@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Configuration status="WARN">
+	
+	<Appenders>
+		<RollingFile 
+			name="RollingFile"
+			fileName="$${env:LOCALAPPDATA}/jYTdl/app.log"
+			filePattern="$${env:LOCALAPPDATA}/jYTdl/app-%d{MM-dd-yyyy}-%i.log.gz">
+			<PatternLayout>
+				<Pattern>%d{ISO8601} %-5p %c{1} &#8249;%t&#8250;&#9;&#8220;%m&#8221;%n &#8227; %C.%M(%F:%L)%n%n</Pattern>
+			</PatternLayout>
+			<Policies>
+				<TimeBasedTriggeringPolicy />
+				<SizeBasedTriggeringPolicy size="250 MB"/>
+			</Policies>
+			<DefaultRolloverStrategy max="20"/>
+		</RollingFile>
+	</Appenders>
+	
+	<Loggers>
+		<Logger name="tv.hd3g" level="info" />
+
+		<Root level="warn">
+			<AppenderRef ref="RollingFile"/>
+		</Root>
+	</Loggers>
+	
+</Configuration>
