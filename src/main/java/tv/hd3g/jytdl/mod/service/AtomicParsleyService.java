@@ -14,18 +14,14 @@
  * Copyright (C) hdsdi3g for hd3g.tv 2021
  *
  */
-package tv.hd3g.jytdl;
+package tv.hd3g.jytdl.mod.service;
 
-import org.springframework.boot.SpringApplication;
-import org.springframework.boot.autoconfigure.EnableAutoConfiguration;
-import org.springframework.boot.autoconfigure.SpringBootApplication;
+import java.io.File;
 
-@SpringBootApplication
-@EnableAutoConfiguration
-public class App {
+import tv.hd3g.jytdl.dto.YoutubeVideoMetadataDto;
 
-	public static void main(final String[] args) {
-		SpringApplication.run(App.class, args);
-	}
+public interface AtomicParsleyService {
+
+	void addTagsToFile(YoutubeVideoMetadataDto mtd, File thumbnailImage, File muxOutfile, File finalOutputFile);
 
 }

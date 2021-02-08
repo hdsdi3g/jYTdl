@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Configuration status="WARN">
+	
+	<Appenders>
+		<RollingFile 
+			name="RollingFile"
+			fileName="$${env:LOCALAPPDATA}/jYTdl/app.log"
+			filePattern="$${env:LOCALAPPDATA}/jYTdl/app-%d{MM-dd-yyyy}-%i.log.gz">
+			<PatternLayout>
+				<Pattern>%d{ISO8601} %-5p %c{1} &#8249;%t&#8250;&#9;&#8220;%m&#8221;%n &#8227; %C.%M(%F:%L)%n%n</Pattern>
+			</PatternLayout>
+			<Policies>
+				<TimeBasedTriggeringPolicy />
+				<SizeBasedTriggeringPolicy size="250 MB"/>
+			</Policies>
+			<DefaultRolloverStrategy max="20"/>
+		</RollingFile>
+	</Appenders>
+	
+	<Loggers>
+        <Logger name="org.apache.catalina.startup.DigesterFactory" level="error" />
+        <Logger name="org.apache.catalina.util.LifecycleBase" level="error" />
+        <Logger name="org.apache.coyote.http11.Http11NioProtocol" level="warn" />
+        <logger name="org.apache.sshd.common.util.SecurityUtils" level="warn" />
+        <Logger name="org.apache.tomcat.util.net.NioSelectorPool" level="warn" />
+        <Logger name="org.eclipse.jetty.util.component.AbstractLifeCycle" level="error" />
+        <Logger name="org.hibernate.validator.internal.util.Version" level="warn" />
+        <logger name="org.springframework.boot.actuate.endpoint.jmx" level="warn" />
+        <logger name="org.springframework.boot.web.embedded.tomcat.TomcatWebServer" level="info" />
+        <logger name="org.apache.catalina.valves.AccessLogValve" level="trace" />
+
+        <Logger name="atomicparsley-process" level="info" />
+        <Logger name="ytdl-process" level="info" />
+        <Logger name="delete-process" level="info" />
+		<Logger name="tv.hd3g" level="info" />
+
+		<Root level="warn">
+			<AppenderRef ref="RollingFile"/>
+		</Root>
+	</Loggers>
+	
+</Configuration>

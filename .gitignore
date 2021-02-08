@@ -1,4 +1,4 @@
-exec
+config/*
 
 # Windows / macOS
 desktop.ini

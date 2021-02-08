@@ -1,6 +1,6 @@
 /*
  * This file is part of jYTdl.
- * 
+ *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU Lesser General Public License as published by
  * the Free Software Foundation; either version 3 of the License, or
@@ -8,172 +8,227 @@
  *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
  * GNU Lesser General Public License for more details.
- * 
+ *
  * Copyright (C) hdsdi3g for hd3g.tv 2018
- * 
-*/
+ *
+ */
 package tv.hd3g.jytdl;
 
+import static com.fasterxml.jackson.databind.DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES;
+import static java.util.stream.Collectors.toUnmodifiableList;
+
 import java.io.File;
-import java.io.IOException;
 import java.net.URL;
 import java.text.Normalizer;
+import java.util.Comparator;
 import java.util.List;
 import java.util.regex.Pattern;
-import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-import com.google.gson.Gson;
-import com.google.gson.GsonBuilder;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 
 import tv.hd3g.jytdl.Config.DownloadPolicyBestFormat;
-import tv.hd3g.jytdl.tools.ImageDownload;
+import tv.hd3g.jytdl.Config.DwlBestFormat;
+import tv.hd3g.jytdl.dto.YoutubeVideoMetadataDto;
+import tv.hd3g.jytdl.dto.YoutubeVideoMetadataFormatDto;
 
 public class MediaAsset {
-	
+
 	private static final Logger log = LogManager.getLogger();
-	
+	private static final ObjectMapper jsonDeserializer = new ObjectMapper()
+	        .configure(FAIL_ON_UNKNOWN_PROPERTIES, false);
+
 	/**
 	 * Transform accents to non accented (ascii) version.
 	 */
-	public static final Pattern PATTERN_Combining_Diacritical_Marks = Pattern.compile("\\p{InCombiningDiacriticalMarks}+");
-	
-	private final URL source_url;
+	public static final Pattern PATTERN_Combining_Diacritical_Marks = Pattern.compile(
+	        "\\p{InCombiningDiacriticalMarks}+");
+
+	private final URL sourceUrl;
 	private final Config config;
-	
-	private YoutubeVideoMetadata mtd;
-	private String normalized_title;
-	private String normalized_uploader;
-	private YoutubeVideoMetadataFormat best_vstream;
-	private YoutubeVideoMetadataFormat best_astream;
-	private DownloadPolicyBestFormat best_format;
-	
-	MediaAsset(URL source_url, Config config) {
-		this.source_url = source_url;
+
+	private YoutubeVideoMetadataDto mtd;
+	private String normalizedTitle;
+	private String normalizedUploader;
+	private YoutubeVideoMetadataFormatDto bestVstream;
+	private YoutubeVideoMetadataFormatDto bestAstream;
+	private DwlBestFormat bestFormat;
+	private File thumbnailImage;
+
+	public MediaAsset(final URL sourceUrl, final Config config) {
+		this.sourceUrl = sourceUrl;
 		this.config = config;
 	}
-	
+
 	public URL getSourceURL() {
-		return source_url;
+		return sourceUrl;
 	}
-	
-	public static String removeFilenameForbiddenChars(String txt) {
-		String l1 = txt.replaceAll("<", "[").replaceAll(">", "]").replaceAll(":", "-").replaceAll("/", "-").replaceAll("\\\\", "-").replaceAll("\\|", " ").replaceAll("\\?", "").replaceAll("\\*", " ").replaceAll("\\\"", "”");
-		l1 = l1.replaceAll("&", "-").replaceAll("%", "");
-		l1 = l1.replaceAll("        ", " ").replaceAll("       ", " ").replaceAll("      ", " ").replaceAll("     ", " ").replaceAll("    ", " ").replaceAll("   ", " ").replaceAll("  ", " ").replaceAll("---", "-").replaceAll("--", "-");
-		return l1;
+
+	public static String removeFilenameForbiddenChars(final String txt) {
+		return txt.replace("<", "[")
+		        .replace(">", "]")
+		        .replace(":", "-")
+		        .replace("/", "-")
+		        .replace("\\", "-")
+		        .replace("|", " ")
+		        .replace("?", "")
+		        .replace("*", " ")
+		        .replace("\"", "”")
+		        .replace("&", "-")
+		        .replace("%", "")
+		        .replace("        ", " ")
+		        .replace("       ", " ")
+		        .replace("      ", " ")
+		        .replace("     ", " ")
+		        .replace("    ", " ")
+		        .replace("   ", " ")
+		        .replace("  ", " ")
+		        .replace("---", "-")
+		        .replace("--", "-");
 	}
-	
-	public void setJsonMetadata(String asset_metadatas_json) {
-		Gson g = new GsonBuilder().setPrettyPrinting().create();
-		mtd = g.fromJson(asset_metadatas_json, YoutubeVideoMetadata.class);
-		
-		normalized_title = removeFilenameForbiddenChars(PATTERN_Combining_Diacritical_Marks.matcher(Normalizer.normalize(mtd.fulltitle.trim(), Normalizer.Form.NFD)).replaceAll("").trim()).trim();
-		normalized_uploader = removeFilenameForbiddenChars(PATTERN_Combining_Diacritical_Marks.matcher(Normalizer.normalize(mtd.uploader, Normalizer.Form.NFD)).replaceAll("").trim()).trim();
-		
-		if (config.only_audio) {
-			best_format = config.audio_only_format;
-			best_astream = YoutubeVideoMetadata.orderByBitrate(YoutubeVideoMetadata.selectBestCodec(mtd.getAllAudioOnlyStreams(), best_format.a)).findFirst().orElse(null);
+
+	private static Stream<YoutubeVideoMetadataFormatDto> selectBestCodec(final Stream<YoutubeVideoMetadataFormatDto> aVFormats,
+	                                                                     final String base_codec_name) {
+		return aVFormats.filter(f -> {
+			if (f.getAcodec() != null && f.getAcodec().equalsIgnoreCase("none") == false) {
+				return f.getAcodec().toLowerCase().startsWith(base_codec_name.toLowerCase());
+			}
+			if (f.getVcodec() != null && f.getVcodec().equalsIgnoreCase("none") == false) {
+				return f.getVcodec().toLowerCase().startsWith(base_codec_name.toLowerCase());
+			}
+			return false;
+		});
+	}
+
+	/**
+	 * @return bigger to smaller
+	 */
+	public static Stream<YoutubeVideoMetadataFormatDto> orderByVideoResolution(final Stream<YoutubeVideoMetadataFormatDto> videoFormats) {
+		return videoFormats.filter(f -> {
+			if (f.getVcodec() == null) {
+				return false;
+			}
+			return f.getVcodec().equalsIgnoreCase("none") == false;
+		}).sorted((l, r) -> (r.getHeight() * r.getWidth() - l.getHeight() * l.getWidth()));
+	}
+
+	public void setJsonMetadata(final String asset_metadatas_json) throws JsonProcessingException {
+		mtd = jsonDeserializer.readValue(asset_metadatas_json, YoutubeVideoMetadataDto.class);
+
+		normalizedTitle = removeFilenameForbiddenChars(PATTERN_Combining_Diacritical_Marks.matcher(Normalizer
+		        .normalize(mtd.getFulltitle().trim(), Normalizer.Form.NFD)).replaceAll("").trim()).trim();
+		normalizedUploader = removeFilenameForbiddenChars(PATTERN_Combining_Diacritical_Marks.matcher(Normalizer
+		        .normalize(mtd.getUploader(), Normalizer.Form.NFD)).replaceAll("").trim()).trim();
+
+		/**
+		 * bigger to smaller
+		 */
+		final Comparator<YoutubeVideoMetadataFormatDto> orderByBitrate = (l, r) -> Math.round(r.getTbr() - l.getTbr());
+
+		final var allAudioOnlyStreams = mtd.getFormats().stream()
+		        .filter(f -> {
+			        if (f.getAcodec() == null
+			            || f.getVcodec() != null && f.getVcodec().equalsIgnoreCase("none") == false) {
+				        return false;
+			        }
+			        return f.getAcodec().equalsIgnoreCase("none") == false;
+		        }).collect(toUnmodifiableList());
+
+		if (config.isOnlyAudio()) {
+			final var bestAudioFormat = config.getAudioOnlyFormat();
+			bestFormat = bestAudioFormat;
+			bestAstream = selectBestCodec(allAudioOnlyStreams.stream(), bestAudioFormat.getA())
+			        .sorted(orderByBitrate)
+			        .findFirst()
+			        .orElse(null);
 		} else {
-			List<YoutubeVideoMetadataFormat> all_best_vstream = config.max_res.stream().flatMap(config_res -> {
-				return config.best_format.stream().map(best_format -> best_format.v).flatMap(config_best_vformat -> {
-					Stream<YoutubeVideoMetadataFormat> stream = mtd.getAllVideoOnlyStreams();
-					stream = YoutubeVideoMetadata.selectBestCodec(stream, config_best_vformat);
-					/*stream = YoutubeVideoMetadata.orderByVideoResolution(stream).dropWhile(f -> {
-						return f.width > config_res.w | f.height > config_res.h;
-					});
-					stream = YoutubeVideoMetadata.orderByBitrate(stream);*/
-					return stream;
-				});
-			}).collect(Collectors.toUnmodifiableList());
-			
-			all_best_vstream = YoutubeVideoMetadata.orderByBitrate(YoutubeVideoMetadata.orderByVideoResolution(all_best_vstream.stream())).collect(Collectors.toUnmodifiableList());
-			
-			best_vstream = all_best_vstream.stream().findFirst().orElse(null);
-			
-			best_astream = config.best_format.stream().map(best_format -> best_format.a).flatMap(config_best_aformat -> {
-				return YoutubeVideoMetadata.orderByBitrate(YoutubeVideoMetadata.selectBestCodec(mtd.getAllAudioOnlyStreams(), config_best_aformat));
-			}).findFirst().orElse(null);
-			
-			best_format = config.best_format.stream().filter(format -> {
-				return best_vstream.vcodec.startsWith(format.v);
-			}).findFirst().orElse(config.best_format.get(0));
-			
-			/*best_format = config.max_res.stream().flatMap(config_res -> {
-				return config.best_format.stream().flatMap(config_best_format -> {
-					Stream<YoutubeVideoMetadataFormat> stream = YoutubeVideoMetadata.selectBestCodec(mtd.getAllVideoOnlyStreams(), config_best_format.v);
-					stream = YoutubeVideoMetadata.orderByBitrate(YoutubeVideoMetadata.orderByVideoResolution(stream));
-					
-					if (stream.findFirst().isPresent()) {
-						return Stream.of(config_best_format);
-					} else {
-						return Stream.empty();
-					}
-				});
-			}).findFirst().orElse(config.best_format.get(0));*/
-			
+			List<YoutubeVideoMetadataFormatDto> allBestVstream = config.getMaxRes().stream().flatMap(
+			        configRes -> config.getBestFormat().stream()
+			                .map(DownloadPolicyBestFormat::getV)
+			                .flatMap(configBestVformat -> selectBestCodec(mtd.getFormats().stream()
+			                        .filter(f -> {
+				                        if (f.getVcodec() == null
+				                            || f.getAcodec() != null
+				                               && f.getAcodec().equalsIgnoreCase("none") == false) {
+					                        return false;
+				                        }
+				                        return f.getVcodec().equalsIgnoreCase("none") == false;
+			                        }), configBestVformat)))
+			        .collect(toUnmodifiableList());
+
+			allBestVstream = orderByVideoResolution(allBestVstream.stream().sorted(orderByBitrate))
+			        .collect(toUnmodifiableList());
+
+			bestVstream = allBestVstream.stream().findFirst().orElse(null);
+
+			bestAstream = config.getBestFormat().stream()
+			        .map(DownloadPolicyBestFormat::getA)
+			        .flatMap(configBestAformat -> selectBestCodec(allAudioOnlyStreams.stream(), configBestAformat)
+			                .sorted(orderByBitrate))
+			        .findFirst()
+			        .orElse(null);
+
+			bestFormat = config.getBestFormat().stream()
+			        .filter(format -> bestVstream.getVcodec().startsWith(format.getV()))
+			        .findFirst().orElse(config.getBestFormat().get(0));
 		}
-		
-		log.info("Wanted format: {}, selected: {}, {}", best_format, best_vstream, best_astream);
+
+		log.info("Wanted format: {}, selected: {}, {}", bestFormat, bestVstream, bestAstream);
 	}
-	
-	public YoutubeVideoMetadata getMtd() {
+
+	public YoutubeVideoMetadataDto getMtd() {
 		return mtd;
 	}
-	
+
 	public String getNormalizedTitle() {
-		return normalized_title;
+		return normalizedTitle;
 	}
-	
+
 	public String getNormalizedUploader() {
-		return normalized_uploader;
+		return normalizedUploader;
 	}
-	
+
 	public String getBaseOutFileName() {
-		return normalized_title + " ➠ " + normalized_uploader + "  " + mtd.id;
+		return normalizedTitle + " ➠ " + normalizedUploader + "  " + mtd.getId();
 	}
-	
+
 	public String getExtension() {
-		return best_format.ext;
+		return bestFormat.getExt();
 	}
-	
+
 	public boolean isProcessMp4() {
-		return best_format.process_mp4;
+		return bestFormat.isProcessMp4();
 	}
-	
+
 	/**
 	 * @return can be null
 	 */
-	public YoutubeVideoMetadataFormat getBestVideoStream() {
-		return best_vstream;
+	public YoutubeVideoMetadataFormatDto getBestVideoStream() {
+		return bestVstream;
 	}
-	
+
 	/**
 	 * @return can be null
 	 */
-	public YoutubeVideoMetadataFormat getBestAudioStream() {
-		return best_astream;
+	public YoutubeVideoMetadataFormatDto getBestAudioStream() {
+		return bestAstream;
 	}
-	
-	private File thumbnail_image;
-	
-	public void downloadImage(ImageDownload downloader, File temp_dir) throws IOException {
-		thumbnail_image = downloader.download(this, temp_dir);
+
+	public void setThumbnailImage(final File thumbnailImage) {
+		this.thumbnailImage = thumbnailImage;
 	}
-	
+
 	/**
-	 * @return can be null, please call downloadImage before.
+	 * @return can be null.
 	 */
 	public File getThumbnailImage() {
-		return thumbnail_image;
+		return thumbnailImage;
 	}
-	
-	public boolean isOnlyAudio() {
-		return config.only_audio;
-	}
+
 }

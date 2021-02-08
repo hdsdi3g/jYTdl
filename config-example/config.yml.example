@@ -1,0 +1,31 @@
+spring:
+    main:
+        banner-mode: "off"
+        log-startup-info: false
+        web-application-type: none
+
+jytdl:
+    maxRes: 
+       - 
+          w: 3840
+          h: 2160
+       - 
+          w: 1920
+          h: 1080
+    bestFormat: 
+       - 
+          v: avc1
+          a: mp4a
+          ext: mp4
+          processMp4: true
+       - 
+          v: vp9
+          a: mp4a
+          ext: mkv
+          processMp4: false
+    audioOnlyFormat:
+       a: mp4a
+       ext: m4a
+    onlyAudio: false
+    scanDir: Desktop
+    outDir: Downloads

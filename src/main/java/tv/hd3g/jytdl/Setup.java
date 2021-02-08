@@ -1,5 +1,5 @@
 /*
- * This file is part of jYTdl.
+ * This file is part of jtydl.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU Lesser General Public License as published by
@@ -11,21 +11,24 @@
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
  * GNU Lesser General Public License for more details.
  *
- * Copyright (C) hdsdi3g for hd3g.tv 2021
+ * Copyright (C) hdsdi3g for hd3g.tv 2019
  *
  */
 package tv.hd3g.jytdl;
 
-import org.springframework.boot.SpringApplication;
-import org.springframework.boot.autoconfigure.EnableAutoConfiguration;
-import org.springframework.boot.autoconfigure.SpringBootApplication;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.ComponentScan;
+import org.springframework.context.annotation.Configuration;
 
-@SpringBootApplication
-@EnableAutoConfiguration
-public class App {
+import tv.hd3g.processlauncher.cmdline.ExecutableFinder;
 
-	public static void main(final String[] args) {
-		SpringApplication.run(App.class, args);
+@Configuration
+@ComponentScan(basePackages = { "tv.hd3g.jytdl", "tv.hd3g.jobkit.mod" })
+public class Setup {
+
+	@Bean
+	public ExecutableFinder getExecutableFinder() {
+		return new ExecutableFinder();
 	}
 
 }
