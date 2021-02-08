@@ -1,6 +1,6 @@
 /*
  * This file is part of jYTdl.
- * 
+ *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU Lesser General Public License as published by
  * the Free Software Foundation; either version 3 of the License, or
@@ -8,12 +8,12 @@
  *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
  * GNU Lesser General Public License for more details.
- * 
+ *
  * Copyright (C) hdsdi3g for hd3g.tv 2018
  * 
-*/
+ */
 package tv.hd3g.jytdl.tools;
 
 import java.io.File;
@@ -36,50 +36,57 @@ import tv.hd3g.jytdl.MediaAsset;
  */
 public class AtomicParsley extends Tool {
 	private static Logger log = LogManager.getLogger();
-	
-	public AtomicParsley(ExecutableFinder exec_binary_path, Config config, Executor message_out_executor) {
+
+	public AtomicParsley(final ExecutableFinder exec_binary_path, final Config config,
+	                     final Executor message_out_executor) {
 		super(exec_binary_path, config, message_out_executor);
 	}
-	
-	public void autoTestExecutable(ScheduledExecutorService max_exec_time_scheduler) throws IOException {
-		ExecProcessText exec = new ExecProcessText("AtomicParsley", exec_binary_path).addParameters("-version").setMaxExecutionTime(15, TimeUnit.SECONDS, max_exec_time_scheduler);
-		String version = exec.run().checkExecution().getStdouterr(false, "; ");
+
+	@Override
+	public void autoTestExecutable(final ScheduledExecutorService max_exec_time_scheduler) throws IOException {
+		final var exec = new ExecProcessText("AtomicParsley", exec_binary_path).addParameters("-version")
+		        .setMaxExecutionTime(15, TimeUnit.SECONDS, max_exec_time_scheduler);
+		final var version = exec.run().checkExecution().getStdouterr(false, "; ");
 		log.info("Use " + version);
 	}
-	
-	public void addTagsToFile(MediaAsset media, File mux_outfile, File output_file) throws IOException {
-		final ExecProcessText ept = new ExecProcessText("AtomicParsley", exec_binary_path);
-		
+
+	public void addTagsToFile(final MediaAsset media,
+	                          final File mux_outfile,
+	                          final File output_file) throws IOException {
+		final var ept = new ExecProcessText("AtomicParsley", exec_binary_path);
+
 		ept.addParameters(mux_outfile.getAbsolutePath());
 		ept.addParameters("--artist", media.getMtd().uploader);
 		ept.addParameters("--title", media.getMtd().fulltitle.trim());
 		ept.addParameters("--album", media.getMtd().extractor_key);
 		ept.addParameters("--grouping", media.getMtd().extractor_key);
-		ept.addParameters("--comment", media.getMtd().description.substring(0, Math.min(255, media.getMtd().description.length())));
-		ept.addParameters("--description", media.getMtd().description.substring(0, Math.min(255, media.getMtd().description.length())));
+		ept.addParameters("--comment", media.getMtd().description.substring(0, Math.min(255, media.getMtd().description
+		        .length())));
+		ept.addParameters("--description", media.getMtd().description.substring(0, Math.min(255, media
+		        .getMtd().description.length())));
 		ept.addParameters("--year", media.getMtd().upload_date.substring(0, 4));
 		ept.addParameters("--compilation", "true");
 		if (media.getThumbnailImage() != null) {
-			ept.addParameters("--artwork", media.getThumbnailImage().getAbsolutePath());
+			// TODO convert image in not png/jpg (webm) ept.addParameters("--artwork", media.getThumbnailImage().getAbsolutePath());
 		}
 		ept.addParameters("--encodingTool", "AtomicParsley");
 		ept.addParameters("--podcastURL", media.getMtd().uploader_url);
 		ept.addParameters("--podcastGUID", media.getMtd().webpage_url);
-		
+
 		media.getMtd().categories.stream().findFirst().ifPresent(category -> {
 			ept.addParameters("--category", category);
 		});
-		
+
 		if (media.getMtd().license != null) {
 			if (media.getMtd().license.trim().isEmpty() == false) {
 				ept.addParameters("--copyright", media.getMtd().license);
 			}
 		}
-		
+
 		if (media.getMtd().age_limit > 13) {
 			ept.addParameters("--advisory", "explicit");
 		}
-		
+
 		/**
 		 * Available stik settings - case sensitive (number in parens shows the stik value).
 		 * (0) Movie
@@ -94,17 +101,17 @@ public class AtomicParsley extends Tool {
 		ept.addParameters("--stik", "Normal");
 		ept.addParameters("--TVNetwork", media.getMtd().extractor_key);
 		ept.addParameters("--TVShowName", media.getMtd().uploader);
-		
+
 		if (media.getMtd().tags != null) {
 			if (media.getMtd().tags.isEmpty() == false) {
 				ept.addParameters("--keyword", media.getMtd().tags.stream().collect(Collectors.joining(",")));
 			}
 		}
-		
+
 		ept.addParameters("--output", output_file.getAbsolutePath());
-		
+
 		log.info("Add tags from " + media.getMtd() + " to " + output_file.getName());
-		
+
 		ept.setInteractiveHandler((source, line, is_std_err) -> {
 			if (line.trim().isEmpty()) {
 				return null;
@@ -118,8 +125,8 @@ public class AtomicParsley extends Tool {
 			}
 			return null;
 		}, message_out_executor);
-		
+
 		ept.run().checkExecution();
 	}
-	
+
 }
