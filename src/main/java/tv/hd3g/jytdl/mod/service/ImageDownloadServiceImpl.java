@@ -23,7 +23,6 @@ import java.net.SocketTimeoutException;
 import java.net.URL;
 
 import org.apache.commons.io.FileUtils;
-import org.apache.commons.io.FilenameUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.springframework.stereotype.Service;
@@ -42,8 +41,7 @@ public class ImageDownloadServiceImpl implements ImageDownloadService {
 
 		try {
 			final var url = new URL(thumbnailURL);
-			final var thumbnailFile = new File(tempDir.getAbsolutePath(),
-			        "thumbnail." + FilenameUtils.getExtension(thumbnailURL));
+			final var thumbnailFile = new File(tempDir.getAbsolutePath(), "thumbnail");
 
 			log.trace("Wait 0.5 sec before try to download");
 			Thread.sleep(500);

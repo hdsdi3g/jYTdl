@@ -22,7 +22,6 @@ import java.util.stream.Collectors;
 
 import javax.annotation.PostConstruct;
 
-import org.apache.commons.io.FilenameUtils;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -75,14 +74,9 @@ public class AtomicParsleyServiceImpl implements AtomicParsleyService {
 		ept.addParameters("--compilation", "true");
 
 		if (thumbnailImage != null) {
-			final var fExt = FilenameUtils.getExtension(thumbnailImage.getName());
-			if (fExt.equals("png") || fExt.equals("jpg") || fExt.equals("jpeg")) {
-				ept.addParameters("--artwork", thumbnailImage.getAbsolutePath());
-			} else {
-				final var convertedThumbnailImage = new File(thumbnailImage.getParentFile(),
-				        FilenameUtils.getBaseName(thumbnailImage.getName()) + ".png");
-				ffmpegMuxerService.simpleConvert(thumbnailImage, convertedThumbnailImage);
-			}
+			final var convertedThumbnailImage = new File(thumbnailImage.getParentFile(), "thumbnail.png");
+			ffmpegMuxerService.simpleConvert(thumbnailImage, convertedThumbnailImage);
+			ept.addParameters("--artwork", convertedThumbnailImage.getPath());
 		}
 		ept.addParameters("--encodingTool", "AtomicParsley");
 		ept.addParameters("--podcastURL", mtd.getUploaderUrl());
